@@ -291,7 +291,7 @@ if llm:
         agent_executor = create_react_agent(
             model=llm,
             tools=[web_search],
-            state_modifier=Base_prompt,
+            prompt=Base_prompt,
             checkpointer=memory
         )
     except Exception as e:
