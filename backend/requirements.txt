@@ -18,3 +18,5 @@ langchain-groq
 tensorflow
 keras
 gunicorn
+tavily-python
+langgraph

@@ -241,23 +241,97 @@ def detect_stress():
     })
 
 # ----------------------------
-# 💬 CHATBOT MODULE
+# 💬 ADVANCED CHATBOT MODULE (Tavily + Groq + LangGraph)
 # ----------------------------
+from tavily import TavilyClient
+from langchain_groq import ChatGroq
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.prebuilt import create_react_agent
+from langchain_core.messages import HumanMessage
+import uuid
+
+# Tavily Tool
+try:
+    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+    tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+except Exception as e:
+    print(f"Warning: Tavily initialization failed: {e}")
+    tavily_client = None
+
+def web_search(query: str):
+    """Search agriculture-related information"""
+    if not tavily_client:
+        return "Search tool is currently unavailable."
+    return tavily_client.search(query)
+
+# System Prompt
+Base_prompt = """
+You are an expert agriculture assistant.
+Give practical, region-aware, farmer-friendly advice.
+Always ask clarifying questions if data is missing.
+Avoid medical or chemical overdose advice.
+"""
+
+# LLM (Groq)
+try:
+    llm = ChatGroq(
+        model="llama-3.1-8b-instant",
+        temperature=0.4
+    )
+except Exception as e:
+    print(f"Warning: ChatGroq initialization failed: {e}")
+    llm = None
+
+# Memory
+memory = InMemorySaver()
+
+# Agent (Created with LangGraph's prebuilt React Agent)
+if llm:
+    try:
+        agent_executor = create_react_agent(
+            model=llm,
+            tools=[web_search],
+            state_modifier=Base_prompt,
+            checkpointer=memory
+        )
+    except Exception as e:
+        print(f"Warning: Agent creation failed: {e}")
+        agent_executor = None
+else:
+    agent_executor = None
 
 @app.route('/api/chat/query', methods=['POST'])
 def chat_query():
     data = request.json
     query = data.get('query')
+    thread_id = data.get('thread_id', str(uuid.uuid4()))
     
     if not query:
         return jsonify({"error": "Query is required"}), 400
         
-    prompt = f"You are an expert agriculture AI assistant. Answer this query: {query}"
-    # In a real RAG setup, we would use the logic from ml.py or build_rag.py here.
-    response = AgroBackend.get_gemini_response(prompt)
+    if not agent_executor:
+        return jsonify({"error": "Chatbot is currently offline (API key missing)"}), 503
+
+    config = {"configurable": {"thread_id": thread_id}}
     
-    return jsonify({"response": response})
+    try:
+        # Run the agent
+        response = agent_executor.invoke(
+            {"messages": [HumanMessage(content=query)]},
+            config=config
+        )
+        
+        # Extract the last message from the agent
+        final_message = response["messages"][-1].content
+        
+        return jsonify({
+            "response": final_message,
+            "thread_id": thread_id
+        })
+    except Exception as e:
+        print(f"Chatbot Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     print("AgroTech AI Cloud-Enabled Backend starting...")
-    app.run(debug=True, host='10.91.148.102', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
