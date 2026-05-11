@@ -1,14 +1,22 @@
 import os
+from dotenv import load_dotenv
+load_dotenv() # Load this FIRST
+
+# Debug: Print keys (masked for safety) to verify they are loaded
+print(f"DEBUG: GROQ_API_KEY loaded: {'Yes' if os.getenv('GROQ_API_KEY') else 'No'}")
+print(f"DEBUG: TAVILY_API_KEY loaded: {'Yes' if os.getenv('TAVILY_API_KEY') else 'No'}")
+print(f"DEBUG: WEATHER_API_KEY loaded: {'Yes' if os.getenv('WEATHER_API_KEY') else 'No'}")
+
 import base64
 import requests
 import json
 import io
 import random
+import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from PIL import Image
-from dotenv import load_dotenv
 
 # Import Custom Modules
 from db.mongo_db import (
@@ -17,8 +25,6 @@ from db.mongo_db import (
 from services.cloudinary_service import upload_image
 from ml.ml import generate_report as get_fertilizer_report
 from ml import crop_rec_ml as crop_ml
-
-load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
@@ -308,33 +314,40 @@ Always ask clarifying questions if data is missing.
 Avoid medical or chemical overdose advice.
 """
 
-# LLM (Groq)
-try:
-    llm = ChatGroq(
-        model="llama-3.3-70b-versatile",
-        temperature=0.4
-    )
-except Exception as e:
-    print(f"Warning: ChatGroq initialization failed: {e}")
-    llm = None
+# Global Agent Placeholder
+agent_executor = None
 
-# Memory
-memory = InMemorySaver()
-
-# Agent (Created with LangGraph's prebuilt React Agent)
-if llm:
+def get_chatbot_agent():
+    global agent_executor
+    if agent_executor is not None:
+        return agent_executor
+        
     try:
+        from langchain_groq import ChatGroq
+        from langgraph.prebuilt import create_react_agent
+        
+        groq_key = os.getenv("GROQ_API_KEY")
+        if not groq_key:
+            return None
+            
+        llm = ChatGroq(
+            model="llama-3.3-70b-versatile",
+            temperature=0.4,
+            api_key=groq_key
+        )
+        
+        from ml.ml import web_search # Import here to avoid circular imports
+        
         agent_executor = create_react_agent(
             model=llm,
             tools=[web_search],
             prompt=Base_prompt,
             checkpointer=memory
         )
+        return agent_executor
     except Exception as e:
-        print(f"Warning: Agent creation failed: {e}")
-        agent_executor = None
-else:
-    agent_executor = None
+        print(f"Chatbot Initialization Error: {e}")
+        return None
 
 @app.route('/api/chat/query', methods=['POST'])
 def chat_query():
@@ -346,8 +359,9 @@ def chat_query():
     if not query:
         return jsonify({"error": "Query is required"}), 400
         
-    if not agent_executor:
-        return jsonify({"error": "Chatbot is currently offline (API key missing)"}), 503
+    executor = get_chatbot_agent()
+    if not executor:
+        return jsonify({"error": "Chatbot is currently offline (Check API Keys on Render)"}), 503
 
     # Add language instruction to the query if it's Hindi
     if lang.lower() == 'hi':

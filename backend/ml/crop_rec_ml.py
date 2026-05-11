@@ -277,13 +277,20 @@ Explain clearly why {crop} is recommended.
 
 
 # final llm response 
-try:
-    from langchain_groq import ChatGroq
-    llm = ChatGroq(model = "llama-3.1-8b-instant")
-except Exception as e:
-    print(f"Warning: ChatGroq initialization failed (re-init): {e}")
-    llm = None
+import os
 
 def final_crop_explaination(crop, lime_output):
+    global llm
+    if llm is None:
+        try:
+            from langchain_groq import ChatGroq
+            groq_key = os.getenv("GROQ_API_KEY")
+            if groq_key:
+                llm = ChatGroq(model="llama-3.1-8b-instant", api_key=groq_key)
+            else:
+                return "Error: GROQ_API_KEY is missing."
+        except Exception as e:
+            return f"Error initializing AI: {e}"
+            
     prompt = build_rag_prompt(crop, lime_output)
     return llm.invoke(prompt).content
