@@ -64,7 +64,6 @@ fun AgroNavHost(viewModel: AgroViewModel) {
     val showBottomBar = currentRoute in listOf(
         Screen.Dashboard.route,
         Screen.Learning.route,
-        Screen.Chatbot.route,
         Screen.Profile.route,
         "crop_menu",
         Screen.StressDetection.route,
