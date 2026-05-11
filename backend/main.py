@@ -308,6 +308,7 @@ else:
 def chat_query():
     data = request.json
     query = data.get('query')
+    lang = data.get('lang', 'en') # Default to English
     thread_id = data.get('thread_id', str(uuid.uuid4()))
     
     if not query:
@@ -315,6 +316,12 @@ def chat_query():
         
     if not agent_executor:
         return jsonify({"error": "Chatbot is currently offline (API key missing)"}), 503
+
+    # Add language instruction to the query if it's Hindi
+    if lang.lower() == 'hi':
+        query = f"{query} (Please respond in Hindi only)"
+    else:
+        query = f"{query} (Please respond in English)"
 
     config = {"configurable": {"thread_id": thread_id}}
     
