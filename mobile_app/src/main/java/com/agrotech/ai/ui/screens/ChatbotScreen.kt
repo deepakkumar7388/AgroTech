@@ -39,6 +39,16 @@ fun ChatbotScreen(navController: NavController, viewModel: AgroViewModel) {
     var text by remember { mutableStateOf("") }
     var isHindi by remember { mutableStateOf(false) }
 
+    val pendingQuery by viewModel.pendingChatQuery.collectAsState()
+
+    // Handle auto-query if coming from "Learn how to grow"
+    LaunchedEffect(pendingQuery) {
+        pendingQuery?.let {
+            viewModel.sendChatMessage(it, if (isHindi) "hi" else "en")
+            viewModel.setPendingChatQuery(null) // Clear after sending
+        }
+    }
+
     // Speech to Text Launcher
     val speechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()

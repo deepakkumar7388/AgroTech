@@ -6,6 +6,7 @@ import com.agrotech.ai.data.model.*
 import com.agrotech.ai.data.repository.AgroRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class AgroViewModel(private val repository: AgroRepository) : ViewModel() {
@@ -39,7 +40,14 @@ class AgroViewModel(private val repository: AgroRepository) : ViewModel() {
 
     // ── Selected language ──
     private val _selectedLanguage = MutableStateFlow("en")
-    val selectedLanguage: StateFlow<String> = _selectedLanguage
+    val selectedLanguage: StateFlow<String> = _selectedLanguage.asStateFlow()
+
+    private val _pendingChatQuery = MutableStateFlow<String?>(null)
+    val pendingChatQuery: StateFlow<String?> = _pendingChatQuery.asStateFlow()
+
+    fun setPendingChatQuery(query: String?) {
+        _pendingChatQuery.value = query
+    }
 
     fun setLanguage(code: String) {
         _selectedLanguage.value = code

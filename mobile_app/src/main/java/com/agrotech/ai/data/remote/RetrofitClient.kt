@@ -7,7 +7,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
     // Your detected PC IP: 10.91.148.102
-    private const val BASE_URL = "https://agrotech-1-zx82.onrender.com/api/" 
+    private const val BASE_URL = "http://10.87.15.65:5000/api/" 
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

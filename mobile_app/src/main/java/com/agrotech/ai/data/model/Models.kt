@@ -1,5 +1,7 @@
 package com.agrotech.ai.data.model
 
+import com.google.gson.annotations.SerializedName
+
 data class User(
     val id: String,
     val name: String,
@@ -25,10 +27,13 @@ data class WeatherData(
 
 data class SoilData(
     val moisture: Double,
-    val nitrogen: Float,
-    val phosphorus: Float,
-    val potassium: Float,
-    val ph: Float
+    @SerializedName("n") val nitrogen: Float,
+    @SerializedName("p") val phosphorus: Float,
+    @SerializedName("k") val potassium: Float,
+    @SerializedName("ph") val ph: Float,
+    @SerializedName("temp") val temperature: Float = 25.0f,
+    val humidity: Float = 70.0f,
+    val rainfall: Float = 100.0f
 )
 
 data class RecommendationResponse(

@@ -191,6 +191,7 @@ fun AgroTextField(
     isError: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    leadingIcon: ImageVector? = null,
     trailingIcon: @Composable (() -> Unit)? = null
 ) {
     OutlinedTextField(
@@ -202,6 +203,7 @@ fun AgroTextField(
         modifier = modifier.fillMaxWidth(),
         keyboardOptions = keyboardOptions,
         visualTransformation = visualTransformation,
+        leadingIcon = leadingIcon?.let { { Icon(it, contentDescription = null) } },
         trailingIcon = trailingIcon,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,

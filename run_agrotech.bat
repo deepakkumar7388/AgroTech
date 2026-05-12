@@ -1,7 +1,10 @@
 @echo off
 echo 🌱 Starting AgroTech AI System Setup...
 
-:: 1. Start Backend in background (same window)
+:: 1. Kill any existing backend on port 5000
+echo 🔍 Cleaning up previous backend instances...
+taskkill /F /IM python.exe /T >nul 2>&1
+
 echo 🚀 Starting Backend Server (Flask) in background...
 start /b cmd /c "cd /d c:\MY_PROJECTS\AgroTech AI\backend && python main.py"
 

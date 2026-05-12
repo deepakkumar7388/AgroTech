@@ -62,7 +62,7 @@ fun AgroBottomNavigation(navController: NavController) {
                 label = strings.crop,
                 selectedIcon = Icons.Filled.Agriculture,
                 unselectedIcon = Icons.Outlined.Agriculture,
-                selected = currentRoute == "crop_menu",
+                selected = currentRoute == "crop_menu" || currentRoute == Screen.CropRecommendation.route || currentRoute == Screen.CropDetails.route,
                 onClick = {
                     navController.navigate("crop_menu") {
                         popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -110,6 +110,7 @@ fun AgroBottomNavigation(navController: NavController) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
+                .width(IntrinsicSize.Min)
                 .offset(y = (-10).dp)
                 .padding(bottom = 4.dp)
         ) {

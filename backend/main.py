@@ -172,7 +172,14 @@ def recommend_crop():
         "timestamp": datetime.utcnow()
     })
     
-    return jsonify(report)
+    # Standardize response key
+    final_response = {
+        "success": True,
+        "recommendation": report.get("Recommended Crop", "Unknown"),
+        "details": report.get("note", "")
+    }
+    
+    return jsonify(final_response)
 
 # ----------------------------
 # 🧪 FERTILIZER RECOMMENDATION (ML + MongoDB)
@@ -340,30 +347,43 @@ def get_chatbot_agent():
         return agent_executor
         
     try:
+        print("DEBUG: Initializing Chatbot Agent...")
         from langchain_groq import ChatGroq
         from langgraph.prebuilt import create_react_agent
+        from langgraph.checkpoint.memory import MemorySaver
+        from langchain_core.messages import HumanMessage
+        print("DEBUG: Libraries imported successfully")
         
         groq_key = os.getenv("GROQ_API_KEY")
         if not groq_key:
+            print("DEBUG: Chatbot Error - GROQ_API_KEY is missing from environment")
             return None
+        
+        print(f"DEBUG: Using Groq Key: {groq_key[:5]}...{groq_key[-5:]}")
             
         llm = ChatGroq(
             model="llama-3.3-70b-versatile",
             temperature=0.4,
             api_key=groq_key
         )
+        print("DEBUG: LLM (ChatGroq) initialized")
         
-        from ml.ml import web_search # Import here to avoid circular imports
+        # Use MemorySaver for session history
+        memory = MemorySaver()
         
+        # Create agent with local web_search tool
         agent_executor = create_react_agent(
             model=llm,
             tools=[web_search],
             prompt=Base_prompt,
             checkpointer=memory
         )
+        print("DEBUG: Agent Executor created successfully")
         return agent_executor
     except Exception as e:
-        print(f"Chatbot Initialization Error: {e}")
+        import traceback
+        print(f"DEBUG: Chatbot Initialization FATAL Error: {e}")
+        traceback.print_exc()
         return None
 
 @app.route('/api/chat/query', methods=['POST'])

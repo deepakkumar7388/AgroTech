@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -32,8 +33,11 @@ class MainActivity : ComponentActivity() {
         setTheme(com.agrotech.ai.R.style.Theme_AgroTechAI)
         super.onCreate(savedInstanceState)
         
-        // Ensure screenshots are allowed (clearing any default security flags)
+        // Ensure screenshots are allowed
         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        
+        // Required for WindowInsets (like keyboard detection) to work in Compose
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         
         // Manual DI for simplicity in this example
         val repository = AgroRepository(RetrofitClient.apiService)
@@ -61,6 +65,9 @@ fun AgroNavHost(viewModel: AgroViewModel) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     
+    // Check if keyboard is visible
+    val isKeyboardVisible = WindowInsets.ime.asPaddingValues().calculateBottomPadding() > 0.dp
+    
     val showBottomBar = currentRoute in listOf(
         Screen.Dashboard.route,
         Screen.Learning.route,
@@ -71,7 +78,7 @@ fun AgroNavHost(viewModel: AgroViewModel) {
         Screen.CropRecommendation.route,
         Screen.NDVIAnalysis.route,
         Screen.CropDetails.route
-    )
+    ) && !isKeyboardVisible
 
     Scaffold(
         bottomBar = {
