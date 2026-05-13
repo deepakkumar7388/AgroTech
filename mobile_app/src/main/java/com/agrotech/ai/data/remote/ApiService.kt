@@ -32,4 +32,7 @@ interface ApiService {
 
     @GET("iot")
     suspend fun simulateIot(@Query("soil") soil: Double, @Query("temp") temp: Double): Response<Map<String, Any>>
+
+    @POST("analyze-crop")
+    suspend fun analyzeCrop(@Body request: CropAnalysisRequest): Response<CropAnalysisResponse>
 }

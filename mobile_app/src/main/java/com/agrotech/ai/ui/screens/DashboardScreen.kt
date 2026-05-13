@@ -2,6 +2,8 @@ package com.agrotech.ai.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +28,8 @@ import com.agrotech.ai.ui.components.*
 import com.agrotech.ai.ui.navigation.Screen
 import com.agrotech.ai.viewmodel.AgroViewModel
 import com.agrotech.ai.ui.theme.LocalAppStrings
+import com.agrotech.ai.data.model.*
+import androidx.compose.foundation.Canvas
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -66,6 +70,7 @@ fun DashboardScreen(navController: NavController, viewModel: AgroViewModel) {
     val error by viewModel.errorState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     
+    val analysisResult by viewModel.cropAnalysisResult.collectAsState()
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -267,7 +272,10 @@ fun DashboardScreen(navController: NavController, viewModel: AgroViewModel) {
                     modifier = Modifier.padding(bottom = 0.dp),
                     onActionClick = { navController.navigate(Screen.NDVIAnalysis.route) }
                 )
-                NDVIMiniMap(onClick = { navController.navigate(Screen.NDVIAnalysis.route) })
+                NDVIMiniMap(
+                    result = analysisResult,
+                    onClick = { navController.navigate(Screen.NDVIAnalysis.route) }
+                )
             }
 
             item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -281,9 +289,9 @@ fun WelcomeBanner(name: String) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp)
+            .padding(horizontal = 8.dp, vertical = 12.dp)
             .height(200.dp),
-        shape = RoundedCornerShape(0.dp),
+        shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -338,8 +346,10 @@ fun WelcomeBanner(name: String) {
 }
 
 @Composable
-fun NDVIMiniMap(onClick: () -> Unit) {
-    Card(
+fun NDVIMiniMap(result: CropAnalysisResponse?, onClick: () -> Unit) {
+    val healthScore = result?.healthScore ?: 0.0
+    val prediction = result?.prediction ?: "No Analysis Data"
+        Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 2.dp)
@@ -349,26 +359,23 @@ fun NDVIMiniMap(onClick: () -> Unit) {
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            // Procedural "Real Map" Background
+            ProceduralNDVIMap(
+                modifier = Modifier.fillMaxSize(),
+                healthScore = healthScore,
+                seed = if (result != null) (healthScore * 1000).toInt() else 42
+            )
+            
+            // Subtle overlay gradient for depth
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF2E7D32), Color(0xFF81C784), Color(0xFFFBC02D))
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.4f))
                         )
                     )
             )
-            
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(16.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                Text("Field #1: Active Analysis", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                Text("Click to expand NDVI View", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
-            }
             
             Icon(
                 imageVector = Icons.Default.Fullscreen,
@@ -416,6 +423,55 @@ fun MetricItem(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+@Composable
+fun ProceduralNDVIMap(modifier: Modifier = Modifier, healthScore: Double = 0.5, seed: Int = 42) {
+    val random = remember(seed) { java.util.Random(seed.toLong()) }
+    
+    Canvas(modifier = modifier) {
+        val rows = 8 // Fewer rows for larger plots
+        val cols = 10
+        val cellWidth = size.width / cols
+        val cellHeight = size.height / rows
+        
+        // Base "Soil/Grass" layer
+        drawRect(color = Color(0xFFE8F5E9))
+
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                val noise = random.nextFloat()
+                // Bias towards healthy green for a "User Friendly" look
+                val score = (healthScore * 0.8 + noise * 0.2).coerceIn(0.0, 1.0)
+                
+                val color = when {
+                    score > 0.6 -> Color(0xFF2E7D32) // Healthy Lush Green
+                    score > 0.4 -> Color(0xFF66BB6A) // Moderate Green
+                    score > 0.2 -> Color(0xFF9CCC65) // Light Green / Young Crop
+                    else -> Color(0xFFC0CA33)        // Slightly Dry / Yellow-Green
+                }
+                
+                // Draw irregular field-like plots
+                if (random.nextFloat() > 0.2) { // 80% coverage
+                    drawRect(
+                        color = color.copy(alpha = 0.9f),
+                        topLeft = androidx.compose.ui.geometry.Offset(c * cellWidth + 2f, r * cellHeight + 2f),
+                        size = androidx.compose.ui.geometry.Size(cellWidth - 4f, cellHeight - 4f)
+                    )
+                }
+            }
+        }
+        
+        // Add subtle "agricultural track" lines
+        for (i in 0 until 5) {
+            val offset = random.nextFloat() * size.width
+            drawLine(
+                color = Color.Black.copy(alpha = 0.05f),
+                start = androidx.compose.ui.geometry.Offset(offset, 0f),
+                end = androidx.compose.ui.geometry.Offset(offset + (random.nextFloat() * 40 - 20), size.height),
+                strokeWidth = 4f
             )
         }
     }

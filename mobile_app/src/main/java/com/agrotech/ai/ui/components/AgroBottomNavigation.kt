@@ -38,7 +38,7 @@ fun AgroBottomNavigation(navController: NavController) {
         // Main Navigation Bar (YouTube Style Outlined icons)
         NavigationBar(
             tonalElevation = 0.dp,
-            containerColor = Color.Black,
+            containerColor = MaterialTheme.colorScheme.surface,
             modifier = Modifier.height(70.dp),
             windowInsets = WindowInsets(0)
         ) {
@@ -149,7 +149,7 @@ fun AgroBottomNavigation(navController: NavController) {
             Text(
                 text = strings.stress,
                 fontSize = 11.sp,
-                color = Color.White,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 modifier = Modifier.padding(top = 4.dp)
             )
@@ -186,11 +186,11 @@ fun RowScope.YouTubeNavItem(
         onClick = onClick,
         alwaysShowLabel = true,
         colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = Color.White,
-            selectedTextColor = Color.White,
-            unselectedIconColor = Color.White.copy(alpha = 0.6f),
-            unselectedTextColor = Color.White.copy(alpha = 0.6f),
-            indicatorColor = Color.Transparent
+            selectedIconColor = Color(0xFF2E7D32), // Vibrant Agricultural Green
+            selectedTextColor = Color(0xFF2E7D32),
+            unselectedIconColor = Color(0xFF757575), // Soft Neutral Grey
+            unselectedTextColor = Color(0xFF757575),
+            indicatorColor = MaterialTheme.colorScheme.surface // Match background exactly
         )
     )
 }

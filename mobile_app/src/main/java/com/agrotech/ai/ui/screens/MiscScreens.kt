@@ -49,25 +49,13 @@ fun SplashScreen(navController: NavController) {
             popUpTo(Screen.Splash.route) { inclusive = true }
         }
     }
-    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        Column(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(id = com.agrotech.ai.R.drawable.ttttt),
+            contentDescription = "Splash Image",
             modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Image(
-                painter = painterResource(id = com.agrotech.ai.R.drawable.ttttt),
-                contentDescription = "AgroTech Logo",
-                modifier = Modifier.size(200.dp).clip(RoundedCornerShape(16.dp)),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 3.dp,
-                modifier = Modifier.size(32.dp)
-            )
-        }
+            contentScale = ContentScale.Crop
+        )
     }
 }
 
@@ -486,25 +474,7 @@ fun ScheduleRow(stage: String, qty: Double, isLast: Boolean) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun NDVIScreen(navController: NavController, @Suppress("UNUSED_PARAMETER") viewModel: AgroViewModel) {
-    val strings = LocalAppStrings.current
-    Scaffold(topBar = { TopAppBar(title = { Text(strings.ndviMap) }, navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Default.ArrowBack, null) } }) }) { padding ->
-        Column(modifier = Modifier.padding(padding).padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(modifier = Modifier.fillMaxWidth().height(300.dp).background(Color.LightGray), contentAlignment = Alignment.Center) {
-                Text(strings.satelliteMap)
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("${strings.healthScore}: 0.82", fontWeight = FontWeight.Bold)
-                    Text("The crop in Zone A shows optimal chlorophyll levels. Zone B requires attention.")
-                }
-            }
-        }
-    }
-}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1098,6 +1068,443 @@ fun SmartIrrigationScreen(navController: NavController, viewModel: AgroViewModel
                 Text("Remote Control Pump (Manual)")
             }
         }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NDVIScreen(navController: NavController, viewModel: AgroViewModel) {
+    val result        by viewModel.cropAnalysisResult.collectAsState()
+    val isLoading     by viewModel.isSatelliteLoading.collectAsState()
+    val errorMsg      by viewModel.errorState.collectAsState()
+    val context       = androidx.compose.ui.platform.LocalContext.current
+
+    // ── Input state ──────────────────────────────────────────────────────────
+    var latitude  by remember { mutableStateOf("") }
+    var longitude by remember { mutableStateOf("") }
+    var radius    by remember { mutableStateOf("500") }
+    var gpsStatus by remember { mutableStateOf("") }
+
+    // ── GPS auto-fill ─────────────────────────────────────────────────────────
+    fun fetchGps() {
+        gpsStatus = "Fetching GPS…"
+        try {
+            val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE)
+                    as android.location.LocationManager
+            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            if (hasPermission) {
+                val loc = lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                    ?: lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
+                if (loc != null) {
+                    latitude  = "%.6f".format(loc.latitude)
+                    longitude = "%.6f".format(loc.longitude)
+                    gpsStatus = "✅ GPS location filled"
+                } else {
+                    gpsStatus = "⚠️ No GPS fix. Enter manually."
+                }
+            } else {
+                gpsStatus = "⚠️ Location permission not granted."
+            }
+        } catch (e: Exception) {
+            gpsStatus = "⚠️ ${e.message}"
+        }
+    }
+
+    // ── Severity → color mapping ──────────────────────────────────────────────
+    fun severityColor(severity: String): Color = when {
+        severity.contains("Critical", true)       -> Color(0xFFE53935)
+        severity.contains("Moderate", true)       -> Color(0xFFFF6F00)
+        severity.contains("Low Activity", true)   -> Color(0xFFF9A825)
+        severity.contains("Optimal", true)        -> Color(0xFF2E7D32)
+        else                                      -> Color(0xFF546E7A)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("🛰️ Satellite Crop Analysis", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, null)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF1B3A2D),
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White
+                )
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .background(Color(0xFFF1F8F2))
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+
+            // ── INPUT CARD ────────────────────────────────────────────────────
+            item {
+                Card(
+                    shape     = RoundedCornerShape(20.dp),
+                    colors    = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                    modifier  = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+
+                        // Header
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF1B3A2D),
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("🛰️", fontSize = 20.sp)
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "Farm Location",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    "Enter coordinates or use GPS",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // GPS Button
+                        OutlinedButton(
+                            onClick = { fetchGps() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1B3A2D))
+                        ) {
+                            Icon(
+                                Icons.Default.MyLocation, null,
+                                tint = Color(0xFF1B3A2D),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Auto-fill from GPS", color = Color(0xFF1B3A2D))
+                        }
+                        if (gpsStatus.isNotEmpty()) {
+                            Text(
+                                gpsStatus,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (gpsStatus.startsWith("✅")) Color(0xFF2E7D32) else Color(0xFFE53935),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Latitude + Longitude
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedTextField(
+                                value = latitude,
+                                onValueChange = { latitude = it },
+                                label = { Text("Latitude") },
+                                placeholder = { Text("e.g. 28.6139") },
+                                leadingIcon = { Icon(Icons.Default.LocationOn, null, tint = Color(0xFF1B3A2D)) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                ),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = longitude,
+                                onValueChange = { longitude = it },
+                                label = { Text("Longitude") },
+                                placeholder = { Text("e.g. 77.209") },
+                                leadingIcon = { Icon(Icons.Default.LocationOn, null, tint = Color(0xFF1B3A2D)) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                                ),
+                                singleLine = true
+                            )
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        // Radius
+                        OutlinedTextField(
+                            value = radius,
+                            onValueChange = { radius = it },
+                            label = { Text("Analysis Radius (metres)") },
+                            placeholder = { Text("e.g. 500") },
+                            leadingIcon = { Icon(Icons.Default.Radar, null, tint = Color(0xFF1B3A2D)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            supportingText = { Text("Min 100m • Max 50,000m • Typical farm: 300–1000m") },
+                            singleLine = true
+                        )
+
+                        Spacer(Modifier.height(20.dp))
+
+                        // Error banner
+                        errorMsg?.let { err ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFFFEBEE),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Error, null, tint = Color(0xFFE53935), modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(err, color = Color(0xFFE53935), style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                        }
+
+                        // Analyze Button
+                        Button(
+                            onClick = {
+                                val lat = latitude.toDoubleOrNull()
+                                val lon = longitude.toDoubleOrNull()
+                                val rad = radius.toDoubleOrNull()
+                                when {
+                                    lat == null || lon == null ->
+                                        android.widget.Toast.makeText(context, "Enter valid latitude and longitude", android.widget.Toast.LENGTH_SHORT).show()
+                                    rad == null || rad < 100 ->
+                                        android.widget.Toast.makeText(context, "Radius must be at least 100 metres", android.widget.Toast.LENGTH_SHORT).show()
+                                    else -> viewModel.analyzeCrop(lat, lon, rad)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            enabled = !isLoading,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B3A2D))
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text("Contacting Satellite…", color = Color.White, fontWeight = FontWeight.Bold)
+                            } else {
+                                Text("🛰️  Analyze Crop Health", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        }
+
+                        if (isLoading) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "⏳ Fetching Sentinel-2 satellite imagery… This may take 20–45 seconds.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF5D7A6A),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── RESULT CARD ───────────────────────────────────────────────────
+            result?.let { data ->
+                // ── 1. HEALTH SCORE HERO ──────────────────────────────────────
+                item {
+                    val sColor = severityColor(data.severity)
+                    Card(
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = sColor.copy(alpha = 0.08f)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(2.dp, sColor.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(data.severity, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                data.prediction,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = sColor
+                            )
+                            Spacer(Modifier.height(16.dp))
+
+                            // Health score bar
+                            Text("Health Score", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                            Spacer(Modifier.height(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(18.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(Color(0xFFE0E0E0))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(fraction = (data.healthScore / 100.0).toFloat().coerceIn(0f, 1f))
+                                        .height(18.dp)
+                                        .clip(RoundedCornerShape(9.dp))
+                                        .background(
+                                            brush = Brush.horizontalGradient(
+                                                listOf(Color(0xFFE53935), Color(0xFFFFA000), sColor)
+                                            )
+                                        )
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "${data.healthScore}/100",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 22.sp,
+                                color = sColor
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "AI Confidence: ${(data.confidence * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                }
+
+                // ── 2. NDVI STATS ─────────────────────────────────────────────
+                item {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text("📡 NDVI Satellite Data", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            Text("Sentinel-2 L2A · ${data.ndviStats.pixelCount} valid pixels analysed", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            Spacer(Modifier.height(16.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                NdviStatBox("Mean NDVI", "%.3f".format(data.ndviStats.meanNdvi), Color(0xFF1B3A2D), Modifier.weight(1f))
+                                NdviStatBox("Max NDVI",  "%.3f".format(data.ndviStats.maxNdvi),  Color(0xFF2E7D32), Modifier.weight(1f))
+                                NdviStatBox("Min NDVI",  "%.3f".format(data.ndviStats.minNdvi),  Color(0xFFBF360C), Modifier.weight(1f))
+                                NdviStatBox("Std Dev",   "%.3f".format(data.ndviStats.stdNdvi),  Color(0xFF6A1B9A), Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+
+                // ── 3. RECOMMENDATIONS ────────────────────────────────────────
+                item {
+                    val rec = data.recommendation
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3FBF5)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text("📋 Field Recommendations", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(12.dp))
+
+                            // Irrigation badge
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (rec.irrigationNeeded) Color(0xFFE3F2FD) else Color(0xFFE8F5E9),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(if (rec.irrigationNeeded) "💧" else "✅", fontSize = 20.sp)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            if (rec.irrigationNeeded) "Irrigation Required" else "No Irrigation Needed",
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (rec.irrigationNeeded) Color(0xFF0D47A1) else Color(0xFF1B5E20)
+                                        )
+                                        Text(rec.irrigationAction, style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+                            RecommendationRow("🌿 Nutrient Action", rec.nutrientAction)
+                            Spacer(Modifier.height(8.dp))
+                            RecommendationRow("🔍 Field Action", rec.fieldAction)
+                            Spacer(Modifier.height(8.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFFFF3E0)
+                            ) {
+                                Row(modifier = Modifier.padding(10.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("🛰️", fontSize = 16.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "Next satellite check recommended in ${rec.nextCheckDays} days",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFE65100)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item { Spacer(Modifier.height(32.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NdviStatBox(label: String, value: String, color: Color, modifier: Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.08f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(value, fontWeight = FontWeight.Black, fontSize = 14.sp, color = color)
+            Spacer(Modifier.height(2.dp))
+            Text(label, fontSize = 9.sp, color = Color.Gray, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun RecommendationRow(title: String, body: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF1B3A2D))
+        Spacer(Modifier.height(2.dp))
+        Text(body, style = MaterialTheme.typography.bodySmall, color = Color.DarkGray, lineHeight = 18.sp)
     }
 }
 

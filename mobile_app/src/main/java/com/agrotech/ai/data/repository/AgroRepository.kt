@@ -32,4 +32,7 @@ class AgroRepository(private val apiService: ApiService) {
     suspend fun getLatestIot(): Response<IotResponse> = apiService.getLatestIot()
 
     suspend fun simulateIot(soil: Double, temp: Double) = apiService.simulateIot(soil, temp)
+
+    suspend fun analyzeCrop(request: CropAnalysisRequest): Response<CropAnalysisResponse> =
+        apiService.analyzeCrop(request)
 }

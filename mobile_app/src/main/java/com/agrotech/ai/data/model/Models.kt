@@ -96,3 +96,45 @@ data class IotResponse(
     val success: Boolean,
     val data: IotData
 )
+
+// ─────────────────────────────────────────────────────────────
+// 🛰️  Satellite / NDVI Analysis  (POST /api/analyze-crop)
+// ─────────────────────────────────────────────────────────────
+
+data class CropAnalysisRequest(
+    val latitude:    Double,
+    val longitude:   Double,
+    val radius:      Double,           // metres
+    // Optional enrichment inputs (improves ML accuracy)
+    val temperature: Double? = null,
+    val humidity:    Double? = null,
+    val rainfall:    Double? = null,
+    @SerializedName("soil_ph") val soilPh: Double? = null
+)
+
+data class NdviStats(
+    @SerializedName("mean_ndvi")   val meanNdvi:   Double,
+    @SerializedName("max_ndvi")    val maxNdvi:    Double,
+    @SerializedName("min_ndvi")    val minNdvi:    Double,
+    @SerializedName("std_ndvi")    val stdNdvi:    Double,
+    @SerializedName("pixel_count") val pixelCount: Int
+)
+
+data class CropHealthRecommendation(
+    @SerializedName("irrigation_needed")          val irrigationNeeded:   Boolean,
+    @SerializedName("irrigation_action")          val irrigationAction:   String,
+    @SerializedName("nutrient_action")            val nutrientAction:     String,
+    @SerializedName("field_action")               val fieldAction:        String,
+    @SerializedName("next_satellite_check_days")  val nextCheckDays:      Int
+)
+
+data class CropAnalysisResponse(
+    val success:           Boolean,
+    val prediction:        String,           // e.g. "Healthy Vegetation"
+    val confidence:        Double,
+    val severity:          String,           // e.g. "🟢 Optimal"
+    @SerializedName("ndvi_health_score") val healthScore: Double,  // 0-100
+    @SerializedName("ndvi_stats")        val ndviStats:   NdviStats,
+    val recommendation:    CropHealthRecommendation,
+    val error:             String? = null
+)

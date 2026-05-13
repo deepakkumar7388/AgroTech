@@ -8,18 +8,18 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    // TIP: Ensure your PC and Mobile are on same WiFi/Hotspot. Current IP: 10.91.148.102
-    private const val BASE_URL = "http://10.91.148.102:5000/api/" 
+    // Use 127.0.0.1 via adb reverse tcp:5000 tcp:5000 for maximum reliability
+    private const val BASE_URL = "http://127.0.0.1:5000/api/" 
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true) // Auto-reconnect logic
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(90, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .addInterceptor(loggingInterceptor)
         .build()
 

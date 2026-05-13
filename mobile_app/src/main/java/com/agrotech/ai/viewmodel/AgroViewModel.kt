@@ -49,6 +49,12 @@ class AgroViewModel(private val repository: AgroRepository) : ViewModel() {
     private val _selectedLanguage = MutableStateFlow("en")
     val selectedLanguage: StateFlow<String> = _selectedLanguage.asStateFlow()
 
+    private val _cropAnalysisResult = MutableStateFlow<CropAnalysisResponse?>(null)
+    val cropAnalysisResult = _cropAnalysisResult.asStateFlow()
+
+    private val _isSatelliteLoading = MutableStateFlow(false)
+    val isSatelliteLoading = _isSatelliteLoading.asStateFlow()
+
     private val _pendingChatQuery = MutableStateFlow<String?>(null)
     val pendingChatQuery: StateFlow<String?> = _pendingChatQuery.asStateFlow()
 
@@ -277,6 +283,33 @@ class AgroViewModel(private val repository: AgroRepository) : ViewModel() {
                     // Ignore errors during polling
                 }
                 delay(2000)
+            }
+        }
+    }
+
+    fun analyzeCrop(lat: Double, lon: Double, radius: Double) {
+        viewModelScope.launch {
+            _isSatelliteLoading.value = true
+            _cropAnalysisResult.value = null
+            _errorState.value = null
+            try {
+                val request = CropAnalysisRequest(
+                    latitude = lat,
+                    longitude = lon,
+                    radius = radius,
+                    temperature = _weatherState.value?.temperature,
+                    humidity = _weatherState.value?.humidity
+                )
+                val response = repository.analyzeCrop(request)
+                if (response.isSuccessful) {
+                    _cropAnalysisResult.value = response.body()
+                } else {
+                    _errorState.value = "Satellite Service Error: ${response.code()}"
+                }
+            } catch (e: Exception) {
+                _errorState.value = "Connection Error: ${e.message}"
+            } finally {
+                _isSatelliteLoading.value = false
             }
         }
     }

@@ -24,8 +24,10 @@ from db.mongo_db import (
     get_user_by_email, create_user, save_report, save_stress_analysis
 )
 from services.cloudinary_service import upload_image
+from services import sentinel_service                      # 🛰️ Sentinel Hub
 from ml.ml import generate_report as get_fertilizer_report
 from ml import crop_rec_ml as crop_ml
+from ml import crop_health_ml                             # 🌾 Crop Health ML
 
 # Global state for diagnostics
 last_iot_data = {"status": "No data yet", "timestamp": None}
@@ -512,6 +514,90 @@ def detect_stress():
         "confidence": confidence,
         "treatment": treatment,
         "image_url": image_url
+    })
+
+# ----------------------------
+# 🛰️ SATELLITE PRECISION AGRICULTURE MODULE (Sentinel Hub + NDVI + ML)
+# ----------------------------
+
+@app.route('/api/analyze-crop', methods=['POST'])
+def analyze_crop():
+    """
+    Precision Agriculture Pipeline
+    ================================
+    POST /api/analyze-crop
+    """
+    data = request.json
+    if not data:
+        return jsonify({"success": False, "error": "Request body must be JSON."}), 400
+
+    # ── 1. Validate & extract inputs ─────────────────────────────────────────
+    try:
+        lat    = float(data["latitude"])
+        lon    = float(data["longitude"])
+        radius = float(data["radius"])
+    except (KeyError, TypeError, ValueError) as e:
+        return jsonify({
+            "success": False,
+            "error":   f"Missing or invalid field: {e}. Provide 'latitude', 'longitude', and 'radius'."
+        }), 400
+
+    # Optional extra sensor / weather data for the ML model
+    extra_inputs = {k: v for k, v in {
+        "temperature": data.get("temperature"),
+        "humidity":    data.get("humidity"),
+        "rainfall":    data.get("rainfall"),
+        "soil_ph":     data.get("soil_ph"),
+    }.items() if v is not None}
+
+    # ── 2. Fetch NDVI stats (live Sentinel Hub OR demo simulation) ────────────
+    try:
+        ndvi_stats = sentinel_service.get_ndvi_stats(lat, lon, radius)
+        bbox = ndvi_stats.pop("bbox", [])        # pull bbox out of stats dict
+        ndvi_stats.pop("demo_mode", None)        # strip internal flag
+        print(f"DEBUG [analyze-crop]: NDVI Stats = {ndvi_stats}")
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 422
+    except RuntimeError as e:
+        print(f"ERROR [analyze-crop]: Satellite fetch failed: {e}")
+        return jsonify({"success": False, "error": f"Satellite data error: {e}"}), 502
+    except Exception as e:
+        print(f"ERROR [analyze-crop]: Unexpected NDVI error: {e}")
+        return jsonify({"success": False, "error": f"NDVI processing error: {e}"}), 500
+
+    # ── 3. Run ML model prediction ────────────────────────────────────────────
+    try:
+        ml_result = crop_health_ml.predict(ndvi_stats, extra_inputs or None)
+        print(f"DEBUG [analyze-crop]: ML Result = {ml_result['prediction']} (conf={ml_result['confidence']})")
+    except Exception as e:
+        print(f"ERROR [analyze-crop]: ML prediction failed: {e}")
+        return jsonify({"success": False, "error": f"ML model error: {e}"}), 500
+
+    # ── 4. Persist the analysis result to MongoDB (background thread) ─────────
+    threading.Thread(target=save_report, args=({
+        "type":        "satellite_crop_analysis",
+        "input":       {"latitude": lat, "longitude": lon, "radius_m": radius},
+        "bbox":         bbox,
+        "ndvi_stats":   ndvi_stats,
+        "ml_result":    ml_result,
+        "timestamp":    datetime.utcnow()
+    },)).start()
+
+    # ── 5. Return the full result ─────────────────────────────────────────────
+    return jsonify({
+        "success":   True,
+        "location": {
+            "latitude":  lat,
+            "longitude": lon,
+            "radius_m":  radius,
+            "bbox":      {"min_lon": bbox[0], "min_lat": bbox[1], "max_lon": bbox[2], "max_lat": bbox[3]} if bbox else {}
+        },
+        "ndvi_stats":        ndvi_stats,
+        "prediction":        ml_result["prediction"],
+        "confidence":        ml_result["confidence"],
+        "severity":          ml_result["severity"],
+        "ndvi_health_score": ml_result["ndvi_health_score"],
+        "recommendation":    ml_result["recommendation"]
     })
 
 # ----------------------------
