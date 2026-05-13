@@ -15,5 +15,8 @@ sealed class Screen(val route: String) {
     object CropDetails : Screen("crop_details")
     object Profile : Screen("profile")
     object SmartIrrigation : Screen("smart_irrigation")
+    object FarmProfiles : Screen("farm_profiles")
+    object OverallHistory : Screen("overall_history")
+    object Notifications : Screen("notifications")
 }
 

@@ -8,8 +8,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    // Use 127.0.0.1 via adb reverse tcp:5000 tcp:5000 for maximum reliability
-    private const val BASE_URL = "http://127.0.0.1:5000/api/" 
+    // Use Local IP for WiFi connection (No cable needed)
+    private const val BASE_URL = "http://10.91.148.102:5000/api/" 
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

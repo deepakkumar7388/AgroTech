@@ -39,6 +39,10 @@ import kotlinx.coroutines.delay
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
+import coil.compose.AsyncImage
 
 @Composable
 fun SplashScreen(navController: NavController) {
@@ -474,53 +478,16 @@ fun ScheduleRow(stage: String, qty: Double, isLast: Boolean) {
     }
 }
 
-
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(navController: NavController, viewModel: AgroViewModel) {
     val userState by viewModel.userState.collectAsState()
-    val strings = LocalAppStrings.current
-    var showLanguageDialog by remember { mutableStateOf(false) }
 
-    if (showLanguageDialog) {
-        AlertDialog(
-            onDismissRequest = { showLanguageDialog = false },
-            title = { Text(strings.languageSettings, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    val languages = listOf("English" to "en", "Hindi" to "hi", "Punjabi" to "pa")
-                    languages.forEach { (name, code) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { 
-                                    viewModel.setLanguage(code)
-                                    showLanguageDialog = false
-                                }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = viewModel.selectedLanguage.collectAsState().value == code,
-                                onClick = { 
-                                    viewModel.setLanguage(code)
-                                    showLanguageDialog = false
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(name, style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showLanguageDialog = false }) {
-                    Text("Close")
-                }
-            },
-            shape = RoundedCornerShape(24.dp)
-        )
+    var profileImageUri by remember { mutableStateOf<Uri?>(null) }
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        profileImageUri = uri
     }
 
     Scaffold { padding ->
@@ -558,13 +525,22 @@ fun ProfileScreen(navController: NavController, viewModel: AgroViewModel) {
                             color = MaterialTheme.colorScheme.surface,
                             tonalElevation = 4.dp
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.Person, 
-                                    null, 
-                                    modifier = Modifier.size(60.dp), 
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                                )
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize().clickable { imagePickerLauncher.launch("image/*") }) {
+                                if (profileImageUri != null) {
+                                    AsyncImage(
+                                        model = profileImageUri,
+                                        contentDescription = "Profile Photo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Person, 
+                                        null, 
+                                        modifier = Modifier.size(60.dp), 
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -622,40 +598,39 @@ fun ProfileScreen(navController: NavController, viewModel: AgroViewModel) {
             item {
                 val strings = LocalAppStrings.current
                 Spacer(modifier = Modifier.height(24.dp))
-                
+                val context = androidx.compose.ui.platform.LocalContext.current
+
                 SettingsGroup(title = strings.accountSettings) {
-                    ProfileMenuItem(title = strings.farmProfiles, icon = Icons.Default.Landscape, description = strings.manageFieldData)
-                    ProfileMenuItem(title = strings.overallHistory, icon = Icons.Default.History, description = strings.viewPastActivities)
+                    ProfileMenuItem(title = strings.farmProfiles, icon = Icons.Default.Landscape, description = strings.manageFieldData, onClick = { navController.navigate(Screen.FarmProfiles.route) })
+                    ProfileMenuItem(title = strings.overallHistory, icon = Icons.Default.History, description = strings.viewPastActivities, onClick = { navController.navigate(Screen.OverallHistory.route) })
                 }
 
                 SettingsGroup(title = strings.preferences) {
-                    ProfileMenuItem(
-                        title = strings.languageSettings, 
-                        icon = Icons.Default.Language, 
-                        description = "Hindi, English, Punjabi",
-                        onClick = { showLanguageDialog = true }
-                    )
-                    ProfileMenuItem(title = strings.notification, icon = Icons.Default.NotificationsActive, description = strings.weatherAlerts)
+                    ProfileMenuItem(title = strings.languageSettings, icon = Icons.Default.Language, description = "Hindi, English, Punjabi", onClick = { navController.navigate(Screen.LanguageSelector.route) })
+                    ProfileMenuItem(title = strings.notification, icon = Icons.Default.NotificationsActive, description = strings.weatherAlerts, onClick = { navController.navigate(Screen.Notifications.route) })
                 }
 
                 SettingsGroup(title = strings.support) {
-                    ProfileMenuItem(title = strings.helpCenter, icon = Icons.Default.HelpCenter)
-                    ProfileMenuItem(title = strings.privacyPolicy, icon = Icons.Default.PrivacyTip)
+                    ProfileMenuItem(title = strings.helpCenter, icon = Icons.Default.HelpCenter, onClick = { android.widget.Toast.makeText(context, "Contacting Help Center...", android.widget.Toast.LENGTH_SHORT).show() })
+                    ProfileMenuItem(title = strings.privacyPolicy, icon = Icons.Default.PrivacyTip, onClick = { android.widget.Toast.makeText(context, "Opening Privacy Policy...", android.widget.Toast.LENGTH_SHORT).show() })
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))
-                
+
                 Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
                     AgroButton(
                         text = strings.logout,
                         onClick = { 
+                            android.widget.Toast.makeText(context, "Logging out...", android.widget.Toast.LENGTH_SHORT).show()
                             viewModel.setLanguage("en")
-                            navController.navigate(Screen.Login.route) 
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         },
                         containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.height(48.dp))
             }
         }
@@ -1319,7 +1294,6 @@ fun NDVIScreen(navController: NavController, viewModel: AgroViewModel) {
                             Text(
                                 "⏳ Fetching Sentinel-2 satellite imagery… This may take 20–45 seconds.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF5D7A6A),
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -1481,7 +1455,7 @@ fun NDVIScreen(navController: NavController, viewModel: AgroViewModel) {
 }
 
 @Composable
-private fun NdviStatBox(label: String, value: String, color: Color, modifier: Modifier) {
+fun NdviStatBox(label: String, value: String, color: Color, modifier: Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
@@ -1500,7 +1474,7 @@ private fun NdviStatBox(label: String, value: String, color: Color, modifier: Mo
 }
 
 @Composable
-private fun RecommendationRow(title: String, body: String) {
+fun RecommendationRow(title: String, body: String) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF1B3A2D))
         Spacer(Modifier.height(2.dp))
