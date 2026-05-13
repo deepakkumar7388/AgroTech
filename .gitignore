@@ -6,8 +6,7 @@ local.properties
 *.ap_
 *.dex
 *.class
-bin/
-gen/
+bin/ gen/
 out/
 
 # Python
@@ -29,3 +28,10 @@ backend/saved_models/
 # System
 Thumbs.db
 .DS_Store
+
+# Secrets
+backend/firebase-key.json
+mobile_app/google-services.json
+mobile_app/src/google-services.json
+mobile_app/google-services.json
+**/google-services.json

@@ -35,4 +35,16 @@ interface ApiService {
 
     @POST("analyze-crop")
     suspend fun analyzeCrop(@Body request: CropAnalysisRequest): Response<CropAnalysisResponse>
+
+    @GET("recommend/future")
+    suspend fun getFutureRecommendation(
+        @Query("lat") lat: Double, 
+        @Query("lon") lon: Double, 
+        @Query("days") days: Int,
+        @Query("lang") lang: String,
+        @Query("n") n: Float,
+        @Query("p") p: Float,
+        @Query("k") k: Float,
+        @Query("ph") ph: Float
+    ): Response<RecommendationResponse>
 }

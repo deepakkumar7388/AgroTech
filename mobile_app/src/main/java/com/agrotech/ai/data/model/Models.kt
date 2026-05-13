@@ -46,6 +46,8 @@ data class RecommendationResponse(
     @SerializedName("why_this_crop") val whyThisCrop: List<LimeItem>? = null,
     @SerializedName("why_this_fertilizer") val whyThisFertilizer: List<LimeItem>? = null,
     @SerializedName("expert_explanation") val expertExplanation: String? = null,
+    val reasons: List<String>? = null,
+    @SerializedName("weather_summary") val weatherSummary: Map<String, Double>? = null,
     val details: String? = null,
     val deficiency: Map<String, Double>? = null,
     val schedule: List<ScheduleItem>? = null
@@ -137,4 +139,16 @@ data class CropAnalysisResponse(
     @SerializedName("ndvi_stats")        val ndviStats:   NdviStats,
     val recommendation:    CropHealthRecommendation,
     val error:             String? = null
+)
+
+// ─────────────────────────────────────────────────────────────
+// 🔔 Notifications
+// ─────────────────────────────────────────────────────────────
+
+data class NotificationItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val title: String,
+    val message: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isRead: Boolean = false
 )

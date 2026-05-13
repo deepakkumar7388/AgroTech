@@ -41,6 +41,26 @@ class MainActivity : ComponentActivity() {
             finishAffinity() 
         }, sessionTimeout)
 
+        // 🔔 FCM SETUP: Subscribe to irrigation alerts
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("all_farmers")
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    android.util.Log.d("FCM", "Subscribed to all_farmers topic")
+                }
+            }
+
+        // 🔔 REQUEST NOTIFICATION PERMISSION (Android 13+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val requestPermissionLauncher = registerForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+            ) { isGranted: Boolean ->
+                if (isGranted) {
+                    android.util.Log.d("FCM", "Notification permission granted")
+                }
+            }
+            requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+
         // 🛡️ DEBUG MODE: Log the error instead of silently closing
         Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
             android.util.Log.e("AgroTechCrash", "CRITICAL STARTUP ERROR", throwable)
@@ -128,7 +148,8 @@ fun AgroNavHost(viewModel: AgroViewModel) {
             composable(Screen.SmartIrrigation.route) { SmartIrrigationScreen(navController, viewModel) }
             composable(Screen.FarmProfiles.route) { FarmProfilesScreen(navController) }
             composable(Screen.OverallHistory.route) { OverallHistoryScreen(navController) }
-            composable(Screen.Notifications.route) { NotificationsScreen(navController) }
+            composable(Screen.Notifications.route) { NotificationsScreen(navController, viewModel) }
+            composable(Screen.FutureRecommendation.route) { FutureRecommendationScreen(navController, viewModel) }
         }
     }
 }

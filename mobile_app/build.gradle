@@ -1,7 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    // id 'com.google.gms.google-services' // Temporarily disabled until file is added
+    id 'com.google.gms.google-services'
 }
 
 android {
@@ -91,8 +91,9 @@ dependencies {
     debugImplementation 'androidx.compose.ui:ui-test-manifest:1.5.4'
 
     // Firebase
-    implementation platform('com.google.firebase:firebase-bom:32.7.2')
-    implementation 'com.google.firebase:firebase-messaging-ktx'
+    implementation platform('com.google.firebase:firebase-bom:33.0.0')
+    implementation 'com.google.firebase:firebase-messaging'
+    implementation 'com.google.firebase:firebase-analytics'
 
     // Play Services Location
     implementation 'com.google.android.gms:play-services-location:21.2.0'

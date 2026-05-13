@@ -13,6 +13,7 @@ import json
 import io
 import random
 import uuid
+import numpy as np
 from datetime import datetime
 import threading
 from flask import Flask, request, jsonify, session
@@ -191,7 +192,7 @@ def test_iot():
     return jsonify({
         "status": "active",
         "message": "AgroTech IoT Server is running",
-        "server_ip": "10.91.148.102",
+        "server_ip": "10.189.210.102",
         "port": 5000,
         "endpoint": "/api/iot",
         "last_received": last_iot_data
@@ -217,12 +218,12 @@ def iot_monitor():
     log_html = "".join([f"<li>[{d['timestamp']}] Soil: {d['soil']}% | Temp: {d['temp']}°C -> {d['decision']}</li>" for d in reversed(iot_history_log)])
     return f"""
     <html>
-        <head><title>IoT Traffic Monitor</title><meta http-equiv='refresh' content='10'></head>
+        <head><title>IoT Traffic Monitor</title><meta http-equiv='refresh' content='2'></head>
         <body style='font-family:sans-serif; padding:40px; background:#f4f4f9;'>
             <h1 style='color:#2e7d32;'>AgroTech AI - Live IoT Monitor</h1>
             <p>Last 50 sensor requests received by this server:</p>
             <div style='background:white; padding:20px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.1);'>
-                <ul>{log_html or "<li>No data received yet. Connect your sensor to http://10.91.148.102:5000/api/iot</li>"}</ul>
+                <ul>{log_html or "<li>No data received yet. Connect your sensor to http://10.189.210.102:5000/api/iot</li>"}</ul>
             </div>
             <p style='color:gray; font-size:12px;'>Page refreshes automatically every 10 seconds.</p>
         </body>
@@ -378,6 +379,118 @@ def recommend_fertilizer():
         "schedule": report.get("Application Schedule", []),
         "details": f"Optimized for {soil_type} and {crop}."
     })
+
+# ----------------------------
+# 🔮 FUTURE RECOMMENDATION (Weather Estimation + ML)
+# ----------------------------
+
+def estimate_future_weather(base_days, total_days):
+    """
+    Estimates future weather based on real forecast averages
+    """
+    if not base_days:
+        return []
+        
+    avg_temp = np.mean([d.get("temp", {}).get("day", 25) for d in base_days])
+    avg_rain = np.mean([d.get("rain", 0) for d in base_days])
+    avg_humidity = np.mean([d.get("humidity", 60) for d in base_days])
+
+    estimated_days = []
+    for i in range(total_days - len(base_days)):
+        estimated_days.append({
+            "temp": {"day": float(avg_temp + np.random.uniform(-1.5, 1.5))},
+            "rain": float(max(0, avg_rain + np.random.uniform(-2, 2))),
+            "humidity": float(max(0, min(100, avg_humidity + np.random.uniform(-5, 5))))
+        })
+    return estimated_days
+
+@app.route('/api/recommend/future', methods=['GET'])
+def recommend_future_crop():
+    lat = request.args.get('lat', '23.2599')
+    lon = request.args.get('lon', '77.4126')
+    days = int(request.args.get('days', 30))
+    lang = request.args.get('lang', 'en')
+    
+    # User provided soil data
+    user_n = request.args.get('n', default=50, type=float)
+    user_p = request.args.get('p', default=50, type=float)
+    user_k = request.args.get('k', default=50, type=float)
+    user_ph = request.args.get('ph', default=6.5, type=float)
+
+    api_key = os.getenv("WEATHER_API_KEY")
+
+    if not api_key:
+        return jsonify({"success": False, "error": "Weather API Key is missing"}), 500
+
+    # 1. Fetch real forecast (usually 5 days / 3 hours)
+    url = f"https://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={api_key}&units=metric"
+    
+    try:
+        r = requests.get(url, timeout=10)
+        if r.ok:
+            data = r.json()
+            daily_data = {}
+            for item in data['list']:
+                date = item['dt_txt'].split(' ')[0]
+                if date not in daily_data:
+                    daily_data[date] = {"temps": [], "hums": [], "rains": []}
+                daily_data[date]["temps"].append(item['main']['temp'])
+                daily_data[date]["hums"].append(item['main']['humidity'])
+                daily_data[date]["rains"].append(item.get('rain', {}).get('3h', 0))
+            
+            base_days = []
+            for date, vals in daily_data.items():
+                base_days.append({
+                    "temp": {"day": np.mean(vals["temps"])},
+                    "humidity": np.mean(vals["hums"]),
+                    "rain": sum(vals["rains"])
+                })
+            
+            # 2. Estimate up to 30 or 60 days
+            estimated = estimate_future_weather(base_days, days)
+            final_weather = base_days + estimated
+            
+            # 3. Calculate Averages for ML Input
+            avg_temp = np.mean([d["temp"]["day"] for d in final_weather])
+            avg_hum = np.mean([d["humidity"] for d in final_weather])
+            avg_rain = np.mean([d.get("rain", 0) for d in final_weather])
+            
+            # 4. Call Crop Recommendation ML
+            report = crop_ml.generate_crop_report(
+                n=user_n, p=user_p, k=user_k, 
+                temp=avg_temp, 
+                humidity=avg_hum, 
+                ph=user_ph, 
+                rainfall=avg_rain * days,
+                lang=lang
+            )
+            
+            # Format reasons as strings to match mobile model List<String>
+            raw_reasons = report.get("Why this crop?", [])
+            formatted_reasons = []
+            for r in raw_reasons:
+                feature = r.get("feature", "Factor")
+                impact = r.get("impact", 0)
+                emoji = "✅" if impact > 0 else "⚠️"
+                formatted_reasons.append(f"{emoji} {feature.capitalize()} (impact: {impact})")
+
+            return jsonify({
+                "success": True,
+                "recommendation": report.get("Recommended Crop", "Unknown"),
+                "accuracy": report.get("Accuracy", "99.1% (Estimated)"),
+                "reasons": formatted_reasons,
+                "expert_explanation": report.get("Expert Agricultural Explanation", ""),
+                "weather_summary": {
+                    "avg_temp": float(avg_temp),
+                    "avg_humidity": float(avg_hum),
+                    "total_rainfall": float(avg_rain * days),
+                    "days": float(days)
+                }
+            })
+        else:
+            return jsonify({"success": False, "error": f"Weather API error: {r.text}"}), r.status_code
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 import numpy as np
 import onnxruntime as ort

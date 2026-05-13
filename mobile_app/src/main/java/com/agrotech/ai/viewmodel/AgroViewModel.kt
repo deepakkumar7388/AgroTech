@@ -24,6 +24,9 @@ class AgroViewModel(private val repository: AgroRepository) : ViewModel() {
     private val _fertilizerRec = MutableStateFlow<RecommendationResponse?>(null)
     val fertilizerRec = _fertilizerRec.asStateFlow()
 
+    private val _futureRec = MutableStateFlow<RecommendationResponse?>(null)
+    val futureRec = _futureRec.asStateFlow()
+
     private val _iotState = MutableStateFlow<IotData?>(null)
     val iotState = _iotState.asStateFlow()
 
@@ -57,6 +60,10 @@ class AgroViewModel(private val repository: AgroRepository) : ViewModel() {
 
     private val _pendingChatQuery = MutableStateFlow<String?>(null)
     val pendingChatQuery: StateFlow<String?> = _pendingChatQuery.asStateFlow()
+
+    // ── Notifications ──
+    val notifications = com.agrotech.ai.data.local.NotificationManager.notifications
+    val unreadNotificationsCount = com.agrotech.ai.data.local.NotificationManager.unreadCount
 
     init {
         startIotPolling()
@@ -310,6 +317,26 @@ class AgroViewModel(private val repository: AgroRepository) : ViewModel() {
                 _errorState.value = "Connection Error: ${e.message}"
             } finally {
                 _isSatelliteLoading.value = false
+            }
+        }
+    }
+
+    fun getFutureRecommendation(lat: Double, lon: Double, days: Int, n: Float, p: Float, k: Float, ph: Float) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _futureRec.value = null
+            _errorState.value = null
+            try {
+                val response = repository.getFutureRecommendation(lat, lon, days, selectedLanguage.value, n, p, k, ph)
+                if (response.isSuccessful) {
+                    _futureRec.value = response.body()
+                } else {
+                    _errorState.value = "Future Sync Error: ${response.code()}"
+                }
+            } catch (e: Exception) {
+                _errorState.value = "Network Error: ${e.message}"
+            } finally {
+                _isLoading.value = false
             }
         }
     }

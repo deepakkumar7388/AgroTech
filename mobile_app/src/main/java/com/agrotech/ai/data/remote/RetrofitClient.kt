@@ -8,7 +8,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    // Use Local IP for WiFi connection (No cable needed)
+    // Use Local IP for WiFi connection (Current: 10.189.210.102)
     private const val BASE_URL = "http://10.189.210.102:5000/api/" 
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {

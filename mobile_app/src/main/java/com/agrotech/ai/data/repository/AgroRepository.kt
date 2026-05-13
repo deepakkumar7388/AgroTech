@@ -35,4 +35,7 @@ class AgroRepository(private val apiService: ApiService) {
 
     suspend fun analyzeCrop(request: CropAnalysisRequest): Response<CropAnalysisResponse> =
         apiService.analyzeCrop(request)
+
+    suspend fun getFutureRecommendation(lat: Double, lon: Double, days: Int, lang: String, n: Float, p: Float, k: Float, ph: Float): Response<RecommendationResponse> =
+        apiService.getFutureRecommendation(lat, lon, days, lang, n, p, k, ph)
 }

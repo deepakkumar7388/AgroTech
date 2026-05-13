@@ -10,8 +10,8 @@
 const char* ssid = "YOUR_WIFI_NAME";
 const char* password = "YOUR_WIFI_PASSWORD";
 
-// 2. Server Settings (AgroTech AI Backend)
-const char* serverUrl = "http://10.91.148.102:5000/api/iot";
+// Change this to your laptop's IP address (Run 'ipconfig' in CMD)
+const char* serverUrl = "http://10.189.210.102:5000/api/iot";
 
 void setup() {
   Serial.begin(115200);

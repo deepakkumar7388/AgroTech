@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -124,16 +125,29 @@ fun DashboardScreen(navController: NavController, viewModel: AgroViewModel) {
                     
                     Spacer(modifier = Modifier.weight(1f))
                     
-                    IconButton(
-                        onClick = { /* Handle Notifications */ },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Notifications, 
-                            contentDescription = "Notifications", 
-                            tint = MaterialTheme.colorScheme.primary, 
-                            modifier = Modifier.size(20.dp)
-                        )
+                    val unreadCount by viewModel.unreadNotificationsCount.collectAsState()
+                    
+                    Box {
+                        IconButton(
+                            onClick = { navController.navigate(Screen.Notifications.route) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                if (unreadCount > 0) Icons.Default.NotificationsActive else Icons.Default.Notifications, 
+                                contentDescription = "Notifications", 
+                                tint = if (unreadCount > 0) Color(0xFFD32F2F) else MaterialTheme.colorScheme.primary, 
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        if (unreadCount > 0) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Red,
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .align(Alignment.TopEnd)
+                            ) {}
+                        }
                     }
                 }
             }
@@ -261,6 +275,29 @@ fun DashboardScreen(navController: NavController, viewModel: AgroViewModel) {
                             )
                         }
                     }
+                }
+            }
+
+            // 3. Quick Actions Grid
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AgroQuickAction(
+                        title = "Future Suggest",
+                        icon = Icons.Default.Timeline,
+                        color = Color(0xFF673AB7),
+                        modifier = Modifier.weight(1f),
+                        onClick = { navController.navigate(Screen.FutureRecommendation.route) }
+                    )
+                    AgroQuickAction(
+                        title = strings.cropInfo,
+                        icon = Icons.Default.MenuBook,
+                        color = Color(0xFF009688),
+                        modifier = Modifier.weight(1f),
+                        onClick = { navController.navigate(Screen.CropDetails.route) }
+                    )
                 }
             }
 
