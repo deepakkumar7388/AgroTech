@@ -550,7 +550,7 @@ fun ProfileScreen(navController: NavController, viewModel: AgroViewModel) {
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            userState?.email ?: "admin@agrotech.com", 
+                            userState?.mobileNumber ?: "No Mobile Number", 
                             style = MaterialTheme.typography.bodySmall, 
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )

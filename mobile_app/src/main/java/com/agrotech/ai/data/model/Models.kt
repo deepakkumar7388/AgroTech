@@ -5,7 +5,9 @@ import com.google.gson.annotations.SerializedName
 data class User(
     val id: String,
     val name: String,
-    val email: String,
+    @SerializedName("mobile_number") val mobileNumber: String,
+    val role: String,
+    @SerializedName("device_id") val deviceId: String? = null,
     val farmSize: String? = null,
     val location: String? = null
 )
@@ -88,8 +90,11 @@ data class FertilizerRequest(
 )
 
 data class IotData(
+    @SerializedName("device_id") val deviceId: String? = null,
     val soil: Double? = null,
     val temp: Double? = null,
+    val humidity: Double? = null,
+    val ph: Double? = null,
     val decision: String? = null,
     val timestamp: String? = null
 )
@@ -99,11 +104,15 @@ data class IotResponse(
     val data: IotData
 )
 
-// Satellite Models
+// ─────────────────────────────────────────────────────────────
+// 🛰️  Satellite / NDVI Analysis  (POST /api/analyze-crop)
+// ─────────────────────────────────────────────────────────────
+
 data class CropAnalysisRequest(
     val latitude:    Double,
     val longitude:   Double,
-    val radius:      Double,
+    val radius:      Double,           // metres
+    // Optional enrichment inputs (improves ML accuracy)
     val temperature: Double? = null,
     val humidity:    Double? = null,
     val rainfall:    Double? = null,
@@ -128,14 +137,18 @@ data class CropHealthRecommendation(
 
 data class CropAnalysisResponse(
     val success:           Boolean,
-    val prediction:        String,
+    val prediction:        String,           // e.g. "Healthy Vegetation"
     val confidence:        Double,
-    val severity:          String,
-    @SerializedName("ndvi_health_score") val healthScore: Double,
+    val severity:          String,           // e.g. "🟢 Optimal"
+    @SerializedName("ndvi_health_score") val healthScore: Double,  // 0-100
     @SerializedName("ndvi_stats")        val ndviStats:   NdviStats,
     val recommendation:    CropHealthRecommendation,
     val error:             String? = null
 )
+
+// ─────────────────────────────────────────────────────────────
+// 💸  Market Price Models
+// ─────────────────────────────────────────────────────────────
 
 data class MarketRecord(
     val state: String,
@@ -155,30 +168,36 @@ data class MarketPriceResponse(
     val records: List<MarketRecord>
 )
 
+// ─────────────────────────────────────────────────────────────
+// 🎓  Expert Learning & Notifications
+// ─────────────────────────────────────────────────────────────
+
 data class VideoLesson(
     val id: String = java.util.UUID.randomUUID().toString(),
     val title: String,
     val expert: String,
     val duration: String,
     val crop: String,
-    val status: String = "APPROVED",
+    val status: String = "APPROVED", // "PENDING", "APPROVED"
     val uploadedBy: String = "System",
     val videoUri: String? = null
 )
 
-data class NotificationItem(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val title: String,
-    val message: String,
-    val timestamp: Long = System.currentTimeMillis(),
-    val isRead: Boolean = false
-)
-
+// 🔔 Centralized Notification Model
 data class AppNotification(
     val id: String = java.util.UUID.randomUUID().toString(),
     val title: String,
     val message: String,
-    val type: String,
+    val type: String, // "EXPERT_VIDEO", "WEATHER_ALERT", "IOT_ALERT"
     val timestamp: Long = System.currentTimeMillis(),
     val isRead: Boolean = false
+)
+
+// 📋 History Tracking Model
+data class HistoryItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val type: String, // "CROP_REC", "FERT_REC"
+    val result: String,
+    val details: String,
+    val timestamp: Long = System.currentTimeMillis()
 )

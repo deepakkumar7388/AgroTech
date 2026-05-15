@@ -1,7 +1,6 @@
 package com.agrotech.ai.data.local
 
 import com.agrotech.ai.data.model.AppNotification
-import com.agrotech.ai.data.model.NotificationItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -14,24 +13,17 @@ object NotificationManager {
 
     fun addNotification(notification: AppNotification) {
         _notifications.value = listOf(notification) + _notifications.value
-        _unreadCount.value = _notifications.value.count { !it.isRead }
-    }
-
-    // Overload for legacy calls
-    fun addNotification(title: String, message: String) {
-        val notification = AppNotification(
-            title = title,
-            message = message,
-            type = "SYSTEM"
-        )
-        addNotification(notification)
+        _unreadCount.value += 1
     }
 
     fun markAsRead(id: String) {
-        _notifications.value = _notifications.value.map {
-            if (it.id == id) it.copy(isRead = true) else it
+        val current = _notifications.value.toMutableList()
+        val index = current.indexOfFirst { it.id == id }
+        if (index != -1 && !current[index].isRead) {
+            current[index] = current[index].copy(isRead = true)
+            _notifications.value = current
+            _unreadCount.value = (_unreadCount.value - 1).coerceAtLeast(0)
         }
-        _unreadCount.value = _notifications.value.count { !it.isRead }
     }
 
     fun markAllAsRead() {

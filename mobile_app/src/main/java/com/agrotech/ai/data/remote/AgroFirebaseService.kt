@@ -13,7 +13,6 @@ import com.agrotech.ai.ui.MainActivity
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.google.firebase.messaging.FirebaseMessaging
-import com.agrotech.ai.data.model.AppNotification
 
 class AgroFirebaseService : FirebaseMessagingService() {
 
@@ -21,12 +20,14 @@ class AgroFirebaseService : FirebaseMessagingService() {
         remoteMessage.notification?.let {
             val title = it.title ?: "AgroTech Alert"
             val body = it.body ?: ""
-            val type = remoteMessage.data["type"] ?: "SYSTEM"
             
             // Save to Local History
-            com.agrotech.ai.data.local.NotificationManager.addNotification(
-                AppNotification(title = title, message = body, type = type)
+            val notification = com.agrotech.ai.data.model.AppNotification(
+                title = title,
+                message = body,
+                type = "WEATHER_ALERT" // Default type
             )
+            com.agrotech.ai.data.local.NotificationManager.addNotification(notification)
             
             // Show System Notification
             sendNotification(title, body)
@@ -35,6 +36,7 @@ class AgroFirebaseService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
+        // Subscribe to 'all_farmers' topic on new token
         FirebaseMessaging.getInstance().subscribeToTopic("all_farmers")
     }
 

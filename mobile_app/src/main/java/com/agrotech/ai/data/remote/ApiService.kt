@@ -6,37 +6,40 @@ import retrofit2.http.*
 
 interface ApiService {
 
-    @POST("auth/login")
+    @POST("api/auth/login")
     suspend fun login(@Body request: Map<String, String>): Response<AuthResponse>
 
-    @POST("auth/signup")
+    @POST("api/auth/signup")
     suspend fun signup(@Body request: Map<String, String>): Response<AuthResponse>
 
-    @GET("weather/current")
+    @POST("api/iot/connect")
+    suspend fun connectDevice(@Header("Authorization") token: String, @Body request: Map<String, String>): Response<Map<String, Any>>
+
+    @GET("api/weather/current")
     suspend fun getCurrentWeather(@Query("lat") lat: Double, @Query("lon") lon: Double): Response<WeatherData>
 
-    @POST("recommend/crop")
+    @POST("api/recommend/crop")
     suspend fun getCropRecommendation(@Body data: SoilData): Response<RecommendationResponse>
 
-    @POST("recommend/fertilizer")
+    @POST("api/recommend/fertilizer")
     suspend fun getFertilizerRecommendation(@Body data: FertilizerRequest): Response<RecommendationResponse>
 
-    @POST("detect/stress")
+    @POST("api/detect/stress")
     suspend fun detectStress(@Body request: Map<String, String>): Response<StressDetectionResponse>
 
-    @POST("ai/ask")
+    @POST("api/ai/ask")
     suspend fun queryChatbot(@Body request: Map<String, String>): Response<Map<String, String>>
 
-    @GET("iot/latest")
-    suspend fun getLatestIot(): Response<IotResponse>
+    @GET("api/iot/latest")
+    suspend fun getLatestIot(@Header("Authorization") token: String): Response<IotResponse>
 
-    @GET("iot")
+    @GET("api/iot")
     suspend fun simulateIot(@Query("soil") soil: Double, @Query("temp") temp: Double): Response<Map<String, Any>>
 
-    @POST("analyze-crop")
+    @POST("api/analyze-crop")
     suspend fun analyzeCrop(@Body request: CropAnalysisRequest): Response<CropAnalysisResponse>
 
-    @GET("recommend/future")
+    @GET("api/recommend/future")
     suspend fun getFutureRecommendation(
         @Query("lat") lat: Double, 
         @Query("lon") lon: Double, 

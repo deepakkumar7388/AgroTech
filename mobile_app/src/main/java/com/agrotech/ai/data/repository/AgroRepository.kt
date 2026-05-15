@@ -6,11 +6,14 @@ import retrofit2.Response
 
 class AgroRepository(private val apiService: ApiService) {
 
-    suspend fun login(email: String, pass: String): Response<AuthResponse> = 
-    apiService.login(mapOf("email" to email, "password" to pass))
+    suspend fun login(mobile: String): Response<AuthResponse> = 
+    apiService.login(mapOf("mobile_number" to mobile))
 
-    suspend fun signup(name: String, email: String, pass: String): Response<AuthResponse> = 
-    apiService.signup(mapOf("name" to name, "email" to email, "password" to pass))
+    suspend fun signup(name: String, mobile: String): Response<AuthResponse> = 
+    apiService.signup(mapOf("name" to name, "mobile_number" to mobile))
+
+    suspend fun connectDevice(token: String, deviceId: String): Response<Map<String, Any>> =
+    apiService.connectDevice("Bearer $token", mapOf("device_id" to deviceId))
 
     suspend fun getWeather(lat: Double, lon: Double): Response<WeatherData> = 
     apiService.getCurrentWeather(lat, lon)
@@ -29,7 +32,8 @@ class AgroRepository(private val apiService: ApiService) {
         return response.body()?.get("response") ?: "Error connecting to AI"
     }
 
-    suspend fun getLatestIot(): Response<IotResponse> = apiService.getLatestIot()
+    suspend fun getLatestIot(token: String): Response<IotResponse> = 
+    apiService.getLatestIot("Bearer $token")
 
     suspend fun simulateIot(soil: Double, temp: Double) = apiService.simulateIot(soil, temp)
 

@@ -94,15 +94,25 @@ data class AppStrings(
     val afterOneMonth: String = "After 1 Month",
     val afterTwoMonth: String = "After 2 Months",
     val planningReport: String = "Planning Report",
-    val futurePlanning: String = "Future Planning",
-    val planningDesc: String = "Plan for the next 1-2 months based on your soil health.",
-    val soilNutrientsPlanning: String = "Soil Nutrients (for planning)",
-    val whenToSow: String = "When do you want to sow?",
-    val seeFuturePrediction: String = "See Future Prediction",
+    val futureCropPlanning: String = "Future Crop Planning",
+    val futureCropDesc: String = "Predict best crops for the next season using AI market trends and weather forecasts.",
+    val seasonalPlanTitle: String = "Prepare for the Coming Season",
+    val seasonalPlanDesc: String = "Plan for the next 1-2 months based on your soil condition.",
+    val soilNutrients: String = "Soil Nutrients (for planning)",
+    val whenToPlant: String = "When do you want to plant?",
+    val viewPrediction: String = "View Future Prediction",
     val predictedResults: String = "Predicted Results",
-    val inMonth: String = "In 1 Month",
-    val inMonths: String = "In %d Months",
-    val accuracy: String = "Accuracy"
+    val inMonths: String = "In %d Month(s)",
+    val seasonalPlanningLabel: String = "Seasonal Planning",
+    val planNextSeason: String = "Plan Your Next Season",
+    val enterSoilForFuture: String = "Enter your soil details. We will fetch future weather automatically.",
+    val predictionRange: String = "Prediction Range",
+    val generateSuggestion: String = "Generate Future Suggestion",
+    val analyzingData: String = "Analyzing Data...",
+    val futureAiSuggestion: String = "FUTURE AI SUGGESTION",
+    val basedOnPredicted: String = "Based on predicted trends for the next %d days.",
+    val whyThisCrop: String = "Why this crop?",
+    val expertAdvice: String = "Expert Advice:"
 )
 
 val EnglishStrings = AppStrings()
@@ -155,15 +165,25 @@ val HindiStrings = AppStrings(
     afterOneMonth = "1 महीने बाद",
     afterTwoMonth = "2 महीने बाद",
     planningReport = "प्लानिंग रिपोर्ट",
-    futurePlanning = "आने वाले समय की तैयारी",
-    planningDesc = "अपनी जमीन की मिट्टी के अनुसार अगले 1-2 महीनों की योजना बनाएं।",
-    soilNutrientsPlanning = "मिट्टी के पोषक तत्व (योजना के लिए)",
-    whenToSow = "आप कब फसल लगाना चाहते हैं?",
-    seeFuturePrediction = "भविष्य की भविष्यवाणी देखें",
+    futureCropPlanning = "भविष्य की फसल योजना",
+    futureCropDesc = "AI मार्केट ट्रेंड और मौसम पूर्वानुमान से अगले सीजन की सर्वश्रेष्ठ फसल जानें।",
+    seasonalPlanTitle = "आने वाले मौसम की तैयारी करें",
+    seasonalPlanDesc = "अपनी मिट्टी की स्थिति के अनुसार अगले 1-2 महीने की योजना बनाएं।",
+    soilNutrients = "मिट्टी के पोषक तत्व (योजना हेतु)",
+    whenToPlant = "कब फसल लगाना चाहते हैं?",
+    viewPrediction = "भविष्य का अनुमान देखें",
     predictedResults = "अनुमानित परिणाम",
-    inMonth = "1 महीने में",
-    inMonths = "%d महीनों में",
-    accuracy = "सटीकता"
+    inMonths = "%d महीने में",
+    seasonalPlanningLabel = "मौसमी योजना",
+    planNextSeason = "अगले सीजन की योजना बनाएं",
+    enterSoilForFuture = "मिट्टी की जानकारी दें। भविष्य का मौसम अपने आप प्राप्त होगा।",
+    predictionRange = "अनुमान अवधि:",
+    generateSuggestion = "भविष्य का सुझाव प्राप्त करें",
+    analyzingData = "डेटा विश्लेषण हो रहा है...",
+    futureAiSuggestion = "AI भविष्य सुझाव",
+    basedOnPredicted = "अगले %d दिनों के अनुमानित रुझानों पर आधारित।",
+    whyThisCrop = "यह फसल क्यों?",
+    expertAdvice = "विशेषज्ञ सलाह:"
 )
 
 val MarathiStrings = AppStrings(
@@ -208,7 +228,14 @@ val MarathiStrings = AppStrings(
     gallery = "गॅलरी",
     uploadPhoto = "रोगांची ओळख पटवण्यासाठी पिकाचा किंवा पानाचा फोटो अपलोड करा.",
     crops = "पिके",
-    viewAll = "सर्व पहा"
+    viewAll = "सर्व पहा",
+    seasonalPlanTitle = "येणाऱ्या हंगामाची तयारी करा",
+    seasonalPlanDesc = "तुमच्या मातीच्या स्थितीनुसार पुढील 1-2 महिन्यांचे नियोजन करा.",
+    soilNutrients = "मातीतील पोषक घटक (नियोजनासाठी)",
+    whenToPlant = "कधी पीक लावायचे आहे?",
+    viewPrediction = "भविष्याचा अंदाज पहा",
+    predictedResults = "अंदाजित निकाल",
+    seasonalPlanningLabel = "हंगामी नियोजन"
 )
 
 val PunjabiStrings = AppStrings(
@@ -259,7 +286,14 @@ val PunjabiStrings = AppStrings(
     crops = "ਫਸਲਾਂ",
     types = "ਕਿਸਮਾਂ",
     viewAll = "ਸਭ ਦੇਖੋ",
-    smartIrrigation = "ਸਮਾਰਟ ਸਿੰਚਾਈ"
+    smartIrrigation = "ਸਮਾਰਟ ਸਿੰਚਾਈ",
+    seasonalPlanTitle = "ਆਉਣ ਵਾਲੇ ਮੌਸਮ ਦੀ ਤਿਆਰੀ ਕਰੋ",
+    seasonalPlanDesc = "ਆਪਣੀ ਮਿੱਟੀ ਦੇ ਅਨੁਸਾਰ ਅਗਲੇ 1-2 ਮਹੀਨਿਆਂ ਦੀ ਯੋਜਨਾ ਬਣਾਓ.",
+    soilNutrients = "ਮਿੱਟੀ ਦੇ ਪੋਸ਼ਕ ਤੱਤ (ਯੋਜਨਾ ਲਈ)",
+    whenToPlant = "ਕਦੋਂ ਫਸਲ ਲਗਾਉਣਾ ਚਾਹੁੰਦੇ ਹੋ?",
+    viewPrediction = "ਭਵਿੱਖ ਦਾ ਅੰਦਾਜ਼ਾ ਦੇਖੋ",
+    predictedResults = "ਅੰਦਾਜ਼ਿਤ ਨਤੀਜੇ",
+    seasonalPlanningLabel = "ਮੌਸਮੀ ਯੋਜਨਾ"
 )
 
 val GujaratiStrings = AppStrings(
@@ -310,7 +344,14 @@ val GujaratiStrings = AppStrings(
     uploadPhoto = "રોગો અથવા તણાવના પરિબળોને ઓળખવા માટે અસરગ્રસ્ત પાક અથવા પાંદડાનો ફોટો અપલોડ કરો.",
     crops = "પાક",
     types = "પ્રકારો",
-    viewAll = "બધા જુઓ"
+    viewAll = "બધા જુઓ",
+    seasonalPlanTitle = "આવનારી સિઝનની તૈયારી કરો",
+    seasonalPlanDesc = "તમારી જમીનની સ્થિતિ મુજબ આગામી 1-2 મહિનાનું આયોજન કરો.",
+    soilNutrients = "જમીનના પોષક તત્વો (આયોજન માટે)",
+    whenToPlant = "ક્યારે પાક વાવવો છે?",
+    viewPrediction = "ભવિષ્યનો અંદાજ જુઓ",
+    predictedResults = "અંદાજિત પરિણામો",
+    seasonalPlanningLabel = "સિઝનલ આયોજન"
 )
 
 val BengaliStrings = AppStrings(

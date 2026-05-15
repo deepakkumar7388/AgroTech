@@ -1,12 +1,11 @@
 package com.agrotech.ai.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -25,52 +25,36 @@ import com.agrotech.ai.ui.components.AgroTextField
 import com.agrotech.ai.ui.navigation.Screen
 import com.agrotech.ai.viewmodel.AgroViewModel
 import com.agrotech.ai.ui.theme.LocalAppStrings
-import com.agrotech.ai.ui.theme.AppStrings
 import com.agrotech.ai.data.model.*
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.Thermostat
-import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material.icons.filled.Agriculture
+import coil.compose.AsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SeasonalPlannerScreen(navController: NavController, viewModel: AgroViewModel) {
     val strings = LocalAppStrings.current
-    var selectedTimeframe by remember { mutableStateOf(1) }
-    var showDetails by remember { mutableStateOf(false) }
-    var selectedResult by remember { mutableStateOf<Pair<Int, RecommendationResponse>?>(null) }
-
-    var n by remember { mutableStateOf("80") }
-    var p by remember { mutableStateOf("40") }
-    var k by remember { mutableStateOf("40") }
-    var ph by remember { mutableStateOf("6.5") }
+    var selectedTimeframe by remember { mutableStateOf(1) } // 1 or 2 months
+    
+    // Soil inputs for more accurate future planning
+    var n by remember { mutableStateOf("") }
+    var p by remember { mutableStateOf("") }
+    var k by remember { mutableStateOf("") }
+    var ph by remember { mutableStateOf("") }
 
     val futureRecs by viewModel.futureRecs.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val sheetState = rememberModalBottomSheetState()
+
+    // State for expanded detail view
+    var expandedResultKey by remember { mutableStateOf<Int?>(null) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(strings.seasonalPlanner, fontWeight = FontWeight.ExtraBold) },
+                title = { Text(strings.seasonalPlanner, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, null)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.primary
-                )
+                }
             )
         }
     ) { padding ->
@@ -78,71 +62,38 @@ fun SeasonalPlannerScreen(navController: NavController, viewModel: AgroViewModel
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-            contentPadding = PaddingValues(16.dp)
+                .padding(16.dp)
         ) {
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
-                            )
-                        )
-                        .padding(24.dp)
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Psychology, null, tint = Color.White, modifier = Modifier.size(32.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                text = strings.futurePlanning,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = strings.planningDesc,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.9f)
-                        )
-                    }
-                }
+                Text(
+                    text = strings.seasonalPlanTitle,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = strings.seasonalPlanDesc,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Science, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(strings.soilNutrientsPlanning, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleSmall)
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            AgroTextField(value = n, onValueChange = { n = it }, label = "N", modifier = Modifier.weight(1f))
-                            AgroTextField(value = p, onValueChange = { p = it }, label = "P", modifier = Modifier.weight(1f))
-                            AgroTextField(value = k, onValueChange = { k = it }, label = "K", modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            item {
-                Text(strings.whenToSow, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 4.dp))
+                Text(strings.soilNutrients, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AgroTextField(value = n, onValueChange = { n = it }, label = "N", modifier = Modifier.weight(1f))
+                    AgroTextField(value = p, onValueChange = { p = it }, label = "P", modifier = Modifier.weight(1f))
+                    AgroTextField(value = k, onValueChange = { k = it }, label = "K", modifier = Modifier.weight(1f))
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
+            item {
+                Text(strings.whenToPlant, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+                
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TimeframeCard(
                         months = 1,
@@ -163,7 +114,8 @@ fun SeasonalPlannerScreen(navController: NavController, viewModel: AgroViewModel
             }
 
             item {
-                Button(
+                AgroButton(
+                    text = strings.viewPrediction,
                     onClick = {
                         val data = SoilData(
                             nitrogen = n.toFloatOrNull() ?: 80f,
@@ -177,189 +129,223 @@ fun SeasonalPlannerScreen(navController: NavController, viewModel: AgroViewModel
                         )
                         viewModel.calculateFutureRecommendations(data)
                     },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoAwesome, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(strings.seeFuturePrediction, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-                }
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
             }
 
             if (isLoading) {
                 item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(strokeWidth = 3.dp)
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
                     }
                 }
             } else if (futureRecs.isNotEmpty()) {
                 item {
-                    Spacer(modifier = Modifier.height(40.dp))
-                    Text(
-                        strings.predictedResults, 
-                        style = MaterialTheme.typography.titleLarge, 
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onBackground
+                    Spacer(modifier = Modifier.height(32.dp))
+                    Text(strings.predictedResults, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                
+                items(futureRecs.toList()) { (months, res) ->
+                    PlanningResultCard(
+                        months = months,
+                        res = res,
+                        isExpanded = expandedResultKey == months,
+                        onClick = { expandedResultKey = if (expandedResultKey == months) null else months },
+                        navController = navController,
+                        viewModel = viewModel
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
-
-                items(futureRecs.toList()) { (months, res) ->
-                    PlanningResultCard(months, res, strings) {
-                        selectedResult = Pair(months, res)
-                        showDetails = true
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-            }
-        }
-
-        if (showDetails && selectedResult != null) {
-            ModalBottomSheet(
-                onDismissRequest = { showDetails = false },
-                sheetState = sheetState,
-                containerColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
-            ) {
-                PlanningDetailsSheet(selectedResult!!.first, selectedResult!!.second, strings)
             }
         }
     }
 }
 
 @Composable
-fun PlanningResultCard(months: Int, res: RecommendationResponse, strings: AppStrings, onClick: () -> Unit) {
+fun PlanningResultCard(
+    months: Int,
+    res: RecommendationResponse,
+    isExpanded: Boolean,
+    onClick: () -> Unit,
+    navController: NavController,
+    viewModel: AgroViewModel
+) {
+    val strings = LocalAppStrings.current
+    val cropName = res.recommendation
+    val imageUrl = getCropImageUrl(cropName)
+
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-    ) {
-        Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = CircleShape,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("+$months", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black, fontSize = 18.sp)
-                }
-            }
-            Spacer(Modifier.width(20.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    if (months == 1) strings.afterOneMonth else strings.afterTwoMonth, 
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    res.recommendation, 
-                    style = MaterialTheme.typography.titleLarge, 
-                    fontWeight = FontWeight.Black, 
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(12.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("${strings.accuracy}: ${res.accuracy ?: "98.5%"}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                }
-            }
-            IconButton(onClick = onClick) {
-                Icon(Icons.Default.ArrowForwardIos, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-            }
-        }
-    }
-}
-
-@Composable
-fun PlanningDetailsSheet(months: Int, res: RecommendationResponse, strings: AppStrings) {
-    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .padding(bottom = 48.dp)
-            .verticalScroll(rememberScrollState())
+            .clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .width(40.dp)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(Color.LightGray)
-        )
-        
-        Spacer(Modifier.height(24.dp))
-        
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Agriculture, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = "Detailed Prediction Report",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Black
-            )
-        }
-        
-        Spacer(Modifier.height(24.dp))
-        
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f))
-        ) {
-            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("RECOMMENDED CROP", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                Text(res.recommendation, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Black)
-                Spacer(Modifier.height(8.dp))
-                Text("Estimated for ${if (months==1) "next month" else "2 months from now"}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        Text("Expert Analysis:", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = res.expertExplanation ?: "Loading detailed analysis...",
-            style = MaterialTheme.typography.bodyMedium,
-            lineHeight = 22.sp
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        Text("Technical Insights:", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(12.dp))
-        
-        res.reasons?.forEach { reason ->
-            Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
-                Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp).padding(top = 4.dp))
-                Spacer(Modifier.width(12.dp))
-                Text(reason, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        
-        Spacer(Modifier.height(32.dp))
-        
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Column {
+            // Summary Row (always visible)
             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF4CAF50))
-                Spacer(Modifier.width(12.dp))
-                Text("AI Confidence Score: ${res.accuracy ?: "98.5%"}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                Surface(
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = CircleShape,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("+$months", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        strings.inMonths.replace("%d", months.toString()),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                    Text(res.recommendation, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Accuracy: ${res.accuracy ?: "98.5%"}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                }
+                Icon(
+                    if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    null,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Expanded Detail View (like crop recommendation)
+            if (isExpanded) {
+                Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Column(modifier = Modifier.padding(16.dp)) {
+
+                    // Crop Image + Name Header
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            modifier = Modifier.size(80.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                        ) {
+                            AsyncImage(
+                                model = imageUrl,
+                                contentDescription = cropName,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                cropName.uppercase(),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF1B5E20)
+                            )
+                            Surface(
+                                color = Color(0xFFE8F5E9),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(Icons.Default.Verified, null, tint = Color(0xFF2E7D32), modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "Accuracy: ${res.accuracy ?: "98.5%"}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF2E7D32),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Why this crop? (AI Reasoning)
+                    if (!res.whyThisCrop.isNullOrEmpty()) {
+                        Text(
+                            strings.whyThisCrop,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            res.whyThisCrop.forEach { item ->
+                                val isPositive = item.impact > 0
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (isPositive) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = if (isPositive) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = item.feature,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (isPositive) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // Expert Explanation
+                    if (!res.expertExplanation.isNullOrEmpty()) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.MenuBook, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        strings.expertAdvice,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = res.expertExplanation,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    lineHeight = 20.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Justify
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // "Complete Guide" Button
+                    AgroButton(
+                        text = strings.getRecommendation,
+                        onClick = {
+                            val query = "Tell me in detail how to grow $cropName"
+                            viewModel.setPendingChatQuery(query)
+                            navController.navigate(Screen.Chatbot.route)
+                        },
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }
 }
-
 
 @Composable
 fun TimeframeCard(months: Int, label: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier) {
@@ -387,6 +373,24 @@ fun TimeframeCard(months: Int, label: String, isSelected: Boolean, onClick: () -
                 tint = if (isSelected) Color.White else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 8.dp)
             )
+        }
+    }
+}
+
+@Composable
+fun FutureCropBadge(name: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.padding(vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(6.dp))
+            Text(name, style = MaterialTheme.typography.labelSmall)
         }
     }
 }

@@ -16,9 +16,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.navigation.NavController
 import com.agrotech.ai.viewmodel.AgroViewModel
 import com.agrotech.ai.ui.components.*
@@ -42,10 +39,10 @@ fun FutureRecommendationScreen(navController: NavController, viewModel: AgroView
     var selectedDays by remember { mutableStateOf(30) }
     
     // Soil Inputs
-    var nValue by remember { mutableStateOf("") }
-    var pValue by remember { mutableStateOf("") }
-    var kValue by remember { mutableStateOf("") }
-    var phValue by remember { mutableStateOf("") }
+    var nValue by remember { mutableStateOf("50") }
+    var pValue by remember { mutableStateOf("50") }
+    var kValue by remember { mutableStateOf("50") }
+    var phValue by remember { mutableStateOf("6.5") }
 
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
@@ -75,7 +72,7 @@ fun FutureRecommendationScreen(navController: NavController, viewModel: AgroView
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Future Crop Planning", fontWeight = FontWeight.Bold) },
+                title = { Text(strings.futureCropPlanning, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, null)
@@ -93,13 +90,13 @@ fun FutureRecommendationScreen(navController: NavController, viewModel: AgroView
         ) {
             item {
                 Text(
-                    text = "Plan Your Next Season",
+                    text = strings.planNextSeason,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Enter your soil details. We will fetch future weather automatically.",
+                    text = strings.enterSoilForFuture,
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.padding(vertical = 8.dp)
@@ -143,7 +140,7 @@ fun FutureRecommendationScreen(navController: NavController, viewModel: AgroView
             }
 
             item {
-                Text("Prediction Range:", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+                Text(strings.predictionRange, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -168,7 +165,7 @@ fun FutureRecommendationScreen(navController: NavController, viewModel: AgroView
 
             item {
                 AgroButton(
-                    text = if (isLoading) "Analyzing Data..." else "Generate Future Suggestion",
+                    text = if (isLoading) strings.analyzingData else strings.generateSuggestion,
                     onClick = {
                         locationPermissionLauncher.launch(
                             arrayOf(
@@ -192,32 +189,29 @@ fun FutureRecommendationScreen(navController: NavController, viewModel: AgroView
             result?.let { rec ->
                 item {
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9))
                     ) {
                         Column(modifier = Modifier.padding(24.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF2E7D32), modifier = Modifier.size(28.dp))
+                                Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFF2E7D32))
                                 Spacer(Modifier.width(12.dp))
-                                Text("FUTURE AI SUGGESTION", fontWeight = FontWeight.ExtraBold, color = Color(0xFF2E7D32), style = MaterialTheme.typography.labelLarge)
+                                Text(strings.futureAiSuggestion, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
                             }
                             
                             Text(
                                 text = rec.recommendation,
-                                style = MaterialTheme.typography.displaySmall,
+                                style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Black,
-                                color = Color(0xFF1B5E20),
-                                modifier = Modifier.padding(vertical = 12.dp)
+                                modifier = Modifier.padding(vertical = 8.dp)
                             )
                             
                             val weather = rec.weatherSummary
                             Text(
-                                text = "Based on predicted trends for the next $selectedDays days.",
+                                text = strings.basedOnPredicted.replace("%d", selectedDays.toString()),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                color = Color.Gray
                             )
 
                             Spacer(modifier = Modifier.height(24.dp))
@@ -229,69 +223,27 @@ fun FutureRecommendationScreen(navController: NavController, viewModel: AgroView
                                 WeatherFutureItem("Temp", "${weather?.get("avg_temp")?.toInt() ?: 0}°C", Icons.Default.Thermostat, Color(0xFFF4511E))
                             }
 
-                            Spacer(modifier = Modifier.height(32.dp))
+                            Spacer(modifier = Modifier.height(24.dp))
                             
-                            Text("Why this crop? (Predictive Reasoning)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20))
-                            Spacer(Modifier.height(8.dp))
-                            
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.5f)),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    val reasons = rec.reasons ?: emptyList()
-                                    if (reasons.isEmpty() && rec.whyThisCrop != null) {
-                                        // Use LIME if available
-                                        rec.whyThisCrop.forEach { item ->
-                                            Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(if(item.impact > 0) Icons.Default.CheckCircle else Icons.Default.Warning, null, tint = if(item.impact > 0) Color(0xFF43A047) else Color(0xFFF4511E), modifier = Modifier.size(16.dp))
-                                                Spacer(Modifier.width(8.dp))
-                                                Text(text = "${item.feature} (Impact: ${item.impact})", style = MaterialTheme.typography.bodyMedium)
-                                            }
-                                        }
-                                    } else {
-                                        for (reason in reasons) {
-                                            Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF43A047), modifier = Modifier.size(16.dp))
-                                                Spacer(Modifier.width(8.dp))
-                                                Text(reason, style = MaterialTheme.typography.bodyMedium)
-                                            }
-                                        }
-                                    }
+                            Text(strings.whyThisCrop, fontWeight = FontWeight.Bold)
+                            val reasons = rec.reasons ?: emptyList()
+                            for (reason in reasons) {
+                                Row(
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF43A047), modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(reason, style = MaterialTheme.typography.bodyMedium)
                                 }
                             }
                             
-                            Spacer(modifier = Modifier.height(24.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             
-                            Text("Expert Agricultural Analysis", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20))
-                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color(0xFFC8E6C9))
-                            
-                            val explanation = rec.expertExplanation ?: "Generating ICAR-standard cultivation advice..."
+                            Text(strings.expertAdvice, fontWeight = FontWeight.Bold)
                             Text(
-                                text = buildAnnotatedString {
-                                    val lines = explanation.split("\n")
-                                    lines.forEach { line ->
-                                        when {
-                                            line.startsWith("**") && line.endsWith("**") -> {
-                                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20), fontSize = 16.sp)) {
-                                                    append(line.replace("**", "") + "\n")
-                                                }
-                                            }
-                                            line.trim().startsWith("*") -> {
-                                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                                    append("• " + line.trim().substring(1).trim() + "\n")
-                                                }
-                                            }
-                                            else -> {
-                                                append(line + "\n")
-                                            }
-                                        }
-                                    }
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                lineHeight = 22.sp,
-                                color = Color.DarkGray
+                                text = rec.expertExplanation ?: "No details available.",
+                                style = MaterialTheme.typography.bodySmall
                             )
                         }
                     }

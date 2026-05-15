@@ -22,7 +22,16 @@ from PIL import Image
 
 # Import Custom Modules
 from db.mongo_db import (
-    get_user_by_email, create_user, save_report, save_stress_analysis
+    # user helpers
+    get_user_by_email, get_user_by_mobile, get_user_by_id,
+    create_user, list_all_users,
+    # device mapping helpers
+    get_device, get_device_by_user,
+    map_device_to_user, unmap_device, list_all_devices,
+    # iot helpers
+    save_iot_reading, get_iot_history_for_user,
+    # report helpers
+    save_report, save_stress_analysis,
 )
 from services.cloudinary_service import upload_image
 from services import sentinel_service                      # 🛰️ Sentinel Hub
@@ -31,12 +40,45 @@ from ml import crop_rec_ml as crop_ml
 from ml import crop_health_ml                             # 🌾 Crop Health ML
 
 # Global state for diagnostics
-last_iot_data = {"status": "No data yet", "timestamp": None}
+# Per-user last sensor reading: { user_id: { soil, temp, ... } }
+_user_iot_data: dict = {}
+# Fallback for unauthenticated/legacy queries
+_global_iot_data = {"status": "No data yet", "timestamp": None}
 
-app = Flask(__name__)
+def _make_simple_token(user_id: str, role: str) -> str:
+    """Very lightweight token (user_id:role). Replace with JWT in production."""
+    import base64, time
+    raw = f"{user_id}:{role}:{int(time.time())}"
+    return base64.b64encode(raw.encode()).decode()
+
+def _parse_token(token: str):
+    """Return (user_id, role) or (None, None) if invalid."""
+    try:
+        import base64
+        raw = base64.b64decode(token.encode()).decode()
+        parts = raw.split(":")
+        return parts[0], parts[1]
+    except Exception:
+        return None, None
+
+def _get_current_user():
+    """Extract user_id and role from the Authorization header."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return _parse_token(auth[7:])
+    return None, None
+
+app = Flask(__name__, static_folder="static", static_url_path="/static")
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "agrotech-ai-key-2024")
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+@app.route('/portal')
+@app.route('/portal/')
+def farmer_portal():
+    """Serve the Farmer Auth & Device Management Web UI."""
+    from flask import send_from_directory
+    return send_from_directory(app.static_folder, 'index.html')
 
 @app.before_request
 def monitor_traffic():
@@ -72,55 +114,161 @@ class AgroBackend:
             return str(e)
 
 # ----------------------------
-# 🔐 AUTH MODULE (MongoDB Atlas)
+# 🔐 AUTH MODULE  (Mobile Number-based, No OTP)
 # ----------------------------
-
-@app.route('/api/auth/login', methods=['POST'])
-def login():
-    data = request.json
-    email = data.get('email')
-    password = data.get('password')
-    
-    user = get_user_by_email(email)
-    if user and user.get('password') == password:
-        return jsonify({
-            'success': True,
-            'token': f"auth_token_{random.randint(1000, 9999)}",
-            'user': {
-                'id': str(user['_id']),
-                'name': user.get('name'),
-                'email': user.get('email')
-            }
-        })
-    return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
 
 @app.route('/api/auth/signup', methods=['POST'])
 def signup():
-    data = request.json
-    name = data.get('name')
-    email = data.get('email')
-    password = data.get('password')
-    
-    if not name or not email or not password:
-        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
-        
-    if get_user_by_email(email):
-        return jsonify({'success': False, 'error': 'User already exists'}), 409
-        
+    """
+    Register a new Farmer using mobile number + name + password.
+    Role defaults to 'farmer'. Admin accounts must be created manually.
+    """
+    print(f"DEBUG: [AUTH SIGNUP] Request received! Data: {request.json}")
+    data = request.json or {}
+    name          = (data.get('name') or '').strip()
+    mobile_number = (data.get('mobile_number') or '').strip()
+
+    if not name or not mobile_number:
+        return jsonify({'success': False, 'error': 'name and mobile_number are required'}), 400
+
+    if len(mobile_number) < 10:
+        return jsonify({'success': False, 'error': 'Enter a valid mobile number (min 10 digits)'}), 400
+
+    if get_user_by_mobile(mobile_number):
+        return jsonify({'success': False, 'error': 'Mobile number already registered'}), 409
+
     user_data = {
-        "name": name,
-        "email": email,
-        "password": password,
-        "created_at": datetime.utcnow()
+        "name":          name,
+        "mobile_number": mobile_number,
+        "role":          "farmer",      # Default role
+        "created_at":    datetime.utcnow(),
     }
-    
     result = create_user(user_data)
-    
+    user_id = str(result.inserted_id)
+    token   = _make_simple_token(user_id, "farmer")
+
     return jsonify({
         'success': True,
-        'token': "new_user_token",
-        'user': {'id': str(result.inserted_id), 'name': name, 'email': email}
+        'token':   token,
+        'user': {
+            'id':            user_id,
+            'name':          name,
+            'mobile_number': mobile_number,
+            'role':          'farmer',
+        }
     })
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Login with mobile_number only (No password)."""
+    print(f"DEBUG: [AUTH LOGIN] Request received! Data: {request.json}")
+    data = request.json or {}
+    mobile_number = (data.get('mobile_number') or '').strip()
+
+    if not mobile_number:
+        return jsonify({'success': False, 'error': 'Mobile number is required'}), 400
+
+    user = get_user_by_mobile(mobile_number)
+    if not user:
+        return jsonify({'success': False, 'error': 'Mobile number not registered. Please signup first.'}), 404
+
+    user_id = str(user['_id'])
+    role    = user.get('role', 'farmer')
+    token   = _make_simple_token(user_id, role)
+    device  = get_device_by_user(user_id)
+
+    return jsonify({
+        'success': True,
+        'token':   token,
+        'user': {
+            'id':            user_id,
+            'name':          user.get('name'),
+            'mobile_number': mobile_number,
+            'role':          role,
+            'device_id':     device['device_id'] if device else None,
+        }
+    })
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def get_me():
+    """Return the profile of the currently authenticated user."""
+    user_id, role = _get_current_user()
+    if not user_id:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+
+    device = get_device_by_user(user_id)
+    return jsonify({
+        'success': True,
+        'user': {
+            'id':            str(user['_id']),
+            'name':          user.get('name'),
+            'mobile_number': user.get('mobile_number'),
+            'role':          user.get('role', 'farmer'),
+            'device_id':     device['device_id'] if device else None,
+        }
+    })
+
+
+# ----------------------------
+# 🔌 DEVICE MAPPING MODULE
+# ----------------------------
+
+@app.route('/api/iot/connect', methods=['POST'])
+def connect_device():
+    """
+    Map a Device ID to the currently logged-in Farmer.
+    The Arduino/laptop script must have this Device ID hardcoded.
+    """
+    user_id, role = _get_current_user()
+    if not user_id:
+        return jsonify({'success': False, 'error': 'Unauthorized – please login first'}), 401
+
+    data      = request.json or {}
+    device_id = (data.get('device_id') or '').strip()
+    if not device_id:
+        return jsonify({'success': False, 'error': 'device_id is required'}), 400
+
+    user = get_user_by_id(user_id)
+    farmer_name = user.get('name', '') if user else ''
+
+    try:
+        map_device_to_user(device_id, user_id, farmer_name)
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 409
+
+    return jsonify({
+        'success':   True,
+        'message':   f"Device '{device_id}' successfully linked to your account.",
+        'device_id': device_id,
+        'user_id':   user_id,
+    })
+
+
+@app.route('/api/iot/disconnect', methods=['POST'])
+def disconnect_device():
+    """Remove a device mapping from the currently logged-in Farmer."""
+    user_id, _ = _get_current_user()
+    if not user_id:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    data      = request.json or {}
+    device_id = (data.get('device_id') or '').strip()
+    if not device_id:
+        return jsonify({'success': False, 'error': 'device_id is required'}), 400
+
+    removed = unmap_device(device_id, user_id)
+    if not removed:
+        return jsonify({'success': False, 'error': 'Device not found or not owned by you'}), 404
+
+    # Clear in-memory state for this user
+    _user_iot_data.pop(user_id, None)
+
+    return jsonify({'success': True, 'message': f"Device '{device_id}' disconnected."})
 
 # ----------------------------
 # ⛅ WEATHER MODULE
@@ -171,9 +319,10 @@ def irrigation_decision(soil_moisture, temperature):
 
 from notification_service import notifier
 
-def send_alert(title, body):
-    # Sends to 'all_farmers' topic so all app users get it
-    notifier.send_to_topic("all_farmers", title, body)
+def send_alert(title, body, user_id=None):
+    # Sends to specific user topic if mapped, otherwise falls back to global
+    topic = f"user_{user_id}" if user_id else "all_farmers"
+    notifier.send_to_topic(topic, title, body)
     print(f"Time: {datetime.utcnow()}\n")
 
 @app.route('/api/weather/current', methods=['GET'])
@@ -192,26 +341,44 @@ def test_iot():
     return jsonify({
         "status": "active",
         "message": "AgroTech IoT Server is running",
-        "server_ip": "10.189.210.102",
         "port": 5000,
-        "endpoint": "/api/iot",
-        "last_received": last_iot_data
+        "endpoint": "/api/iot/data",
+        "active_users": len(_user_iot_data)
     })
+
 
 @app.route("/api/iot/latest", methods=["GET"])
 def get_latest_iot():
-    print(f"DEBUG: Mobile App Polling -> Current State: {last_iot_data}")
-    return jsonify({
-        "success": True,
-        "data": last_iot_data
-    })
+    """
+    Return the most recent sensor reading for the authenticated farmer.
+    If unauthenticated, returns the global (legacy) snapshot.
+    """
+    user_id, _ = _get_current_user()
+    if user_id and user_id in _user_iot_data:
+        data = _user_iot_data[user_id]
+    elif user_id:
+        # User authenticated but no data yet — fetch latest from DB
+        history = get_iot_history_for_user(user_id, limit=1)
+        data = history[0] if history else {"status": "No sensor data yet for your device."}
+    else:
+        data = _global_iot_data
+
+    print(f"DEBUG: IoT Latest poll – user={user_id} data={data}")
+    return jsonify({"success": True, "data": data})
+
 
 @app.route("/api/iot/history", methods=["GET"])
 def get_iot_history():
-    return jsonify({
-        "success": True,
-        "history": iot_history_log
-    })
+    """
+    Return per-user sensor history (last 50 readings).
+    Unauthenticated requests get an error.
+    """
+    user_id, _ = _get_current_user()
+    if not user_id:
+        return jsonify({'success': False, 'error': 'Unauthorized – login required'}), 401
+
+    history = get_iot_history_for_user(user_id, limit=50)
+    return jsonify({"success": True, "history": history})
 
 @app.route("/iot/monitor")
 def iot_monitor():
@@ -234,73 +401,172 @@ def iot_monitor():
 @app.route("/api/iot/data", methods=["POST"], strict_slashes=False)
 @app.route("/api/iot", methods=["POST", "GET"], strict_slashes=False)
 def receive_iot_data():
-    global last_iot_data, iot_history_log
+    """
+    Ingest sensor data from a laptop/Arduino script.
+
+    Expected JSON payload:
+    {
+        "device_id":    "FARM_DEVICE_001",   ← required for user routing
+        "soil_moisture": 42.5,
+        "temperature":   28.3,
+        "humidity":      65.0,
+        "ph":            6.8              ← optional
+    }
+
+    If device_id is present and mapped, data is routed to that Farmer only.
+    If device_id is absent/unmapped, data goes to the legacy global store.
+    """
+    global _global_iot_data
     try:
-        # 1. Try to get data from multiple sources (JSON, Form, Args)
+        # ── 1. Parse payload ──────────────────────────────────────────────────
         if request.is_json:
             data = request.json
         elif request.form:
             data = request.form.to_dict()
         else:
             data = request.args.to_dict()
-            
+
         if not data:
             return jsonify({"status": "error", "message": "No data found in request"}), 400
-            
-        # Normalize keys to lowercase for universal matching
-        data_lower = {k.lower(): v for k, v in data.items()}
-        
-        # 2. Extract and Normalize (support user's specific keys)
-        soil = float(data_lower.get("soil_moisture") or data_lower.get("soil") or data_lower.get("moisture") or 0)
-        temp = float(data_lower.get("temperature") or data_lower.get("temp") or 0)
-        humidity = float(data_lower.get("humidity") or 0)
-        
-        print(f"DEBUG: IoT Data Received -> Soil: {soil}, Temp: {temp} | Keys: {list(data.keys())}")
 
-        # 3. Decision Logic
+        # Normalize keys
+        data_lower = {k.lower(): v for k, v in data.items()}
+
+        # ── 2. Extract sensor values ──────────────────────────────────────────
+        device_id = str(data_lower.get("device_id") or "").strip()
+        soil      = float(data_lower.get("soil_moisture") or data_lower.get("soil") or data_lower.get("moisture") or 0)
+        temp      = float(data_lower.get("temperature")  or data_lower.get("temp") or 0)
+        humidity  = float(data_lower.get("humidity") or 0)
+        ph        = float(data_lower.get("ph") or 0)
+
+        print(f"DEBUG: IoT Received – device={device_id or 'NONE'} soil={soil} temp={temp} humidity={humidity} ph={ph}")
+
+        # ── 3. Resolve device → user mapping ─────────────────────────────────
+        user_id = None
+        if device_id:
+            device_doc = get_device(device_id)
+            if device_doc:
+                user_id = device_doc.get("user_id")
+                if user_id:
+                    print(f"DEBUG: Device '{device_id}' routed to user '{user_id}'")
+                else:
+                    print(f"DEBUG: Device '{device_id}' exists but is unmapped.")
+            else:
+                print(f"WARN: Discovery! New sensor '{device_id}' detected. Registering as unmapped hardware.")
+                from db.mongo_db import devices_col
+                if devices_col is not None:
+                    devices_col.insert_one({
+                        "device_id": device_id,
+                        "user_id": None,
+                        "farmer_name": "",
+                        "connected_at": datetime.utcnow(),
+                        "active": True
+                    })
+
+        # ── 4. Irrigation decision logic ─────────────────────────────────────
         if 0 < soil < 30:
             decision = "START IRRIGATION"
-            send_alert("Soil is Dry!", f"Moisture is {soil}%. Please turn on the motor.")
+            if user_id:
+                send_alert("Soil is Dry! 🌱", f"Moisture is {soil:.1f}%. Please turn on irrigation.", user_id=user_id)
         elif soil == 0:
             decision = "Waiting for Sensor..."
         else:
             decision = "NO IRRIGATION"
 
-        # 4. Check Weather for Rain Alert
+        # ── 5. Rain alert check ───────────────────────────────────────────────
         try:
-            weather_data = get_weather_data(28.6139, 77.2090) # Default coords, can be dynamic
+            weather_data = get_weather_data(28.6139, 77.2090)
             if "Rain" in weather_data.get('condition', ''):
-                send_alert("Rain Alert!", "Rain is expected. You can stop manual irrigation.")
-        except:
+                send_alert("Rain Alert! 🌧️", "Rain expected. You can pause manual irrigation.")
+        except Exception:
             pass
 
-        # Update global state AFTER decision
-        global last_iot_data
-        last_iot_data = {
-            "soil": soil,
-            "temp": temp,
-            "decision": decision,
-            "timestamp": str(datetime.utcnow())
+        # ── 6. Build snapshot ─────────────────────────────────────────────────
+        snapshot = {
+            "device_id": device_id,
+            "soil":      soil,
+            "temp":      temp,
+            "humidity":  humidity,
+            "ph":        ph,
+            "decision":  decision,
+            "timestamp": str(datetime.utcnow()),
         }
 
-        # Save to MongoDB for history in Background
-        threading.Thread(target=save_report, args=({
-            "type": "iot_sensor_data",
-            "soil_moisture": soil,
-            "temperature": temp,
-            "decision": decision,
-            "timestamp": datetime.utcnow()
-        },)).start()
+        # ── 7. Store & broadcast ──────────────────────────────────────────────
+        if user_id:
+            # Per-farmer in-memory state (for fast polling)
+            _user_iot_data[user_id] = snapshot
+            # Persist to MongoDB (per-user collection)
+            threading.Thread(
+                target=save_iot_reading,
+                args=(user_id, device_id, {
+                    "soil_moisture": soil,
+                    "temperature":   temp,
+                    "humidity":      humidity,
+                    "ph":            ph,
+                    "decision":      decision,
+                })
+            ).start()
+        else:
+            # Legacy: no device_id or unmapped device → global fallback
+            _global_iot_data = snapshot
+            threading.Thread(target=save_report, args=({
+                "type": "iot_sensor_data",
+                "device_id":     device_id,
+                "soil_moisture": soil,
+                "temperature":   temp,
+                "humidity":      humidity,
+                "ph":            ph,
+                "decision":      decision,
+                "timestamp":     datetime.utcnow()
+            },)).start()
 
         return jsonify({
-            "status": "received",
-            "decision": decision,
-            "soil": soil,
-            "temp": temp,
-            "timestamp": datetime.utcnow()
+            "status":    "received",
+            "routed_to": user_id or "global",
+            "decision":  decision,
+            "soil":      soil,
+            "temp":      temp,
+            "humidity":  humidity,
+            "ph":        ph,
+            "timestamp": snapshot["timestamp"],
         })
+
     except Exception as e:
+        print(f"ERROR: receive_iot_data – {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ----------------------------
+# 🛡️ ADMIN MODULE
+# ----------------------------
+
+@app.route('/api/admin/users', methods=['GET'])
+def admin_list_users():
+    """Admin-only: list all registered farmers."""
+    user_id, role = _get_current_user()
+    if not user_id or role != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+    users = list_all_users()
+    for u in users:
+        u['id'] = str(u.pop('_id', ''))
+        u.pop('password', None)   # never expose passwords
+    return jsonify({'success': True, 'users': users})
+
+
+@app.route('/api/admin/devices', methods=['GET'])
+def admin_list_devices():
+    """Admin-only: list all device→farmer mappings."""
+    user_id, role = _get_current_user()
+    if not user_id or role != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+
+    devices = list_all_devices()
+    for d in devices:
+        d['id'] = str(d.pop('_id', ''))
+        d['connected_at'] = str(d.get('connected_at', ''))
+    return jsonify({'success': True, 'devices': devices})
 
 # ----------------------------
 # 🌾 CROP RECOMMENDATION (ML + MongoDB)
@@ -309,7 +575,10 @@ def receive_iot_data():
 @app.route('/api/recommend/crop', methods=['POST'])
 def recommend_crop():
     import time
-    data = request.json
+    start_time = time.time()
+    print("DEBUG: recommend_crop - START")
+    
+    data = request.json or {}
     n = data.get('n', 0)
     p = data.get('p', 0)
     k = data.get('k', 0)
@@ -319,41 +588,32 @@ def recommend_crop():
     rainfall = data.get('rainfall', 100.0)
     lang = data.get('lang', 'en')
     
-    print(f"\n{'='*60}")
-    print(f"CROP REC REQUEST: N={n}, P={p}, K={k}, T={temp}, H={humidity}, pH={ph}, R={rainfall}")
-    
     try:
-        t1 = time.time()
-        print(f"[STEP 1] Running predict_crop_with_lime...")
-        input_data = {"N": n, "P": p, "K": k, "temperature": temp, "humidity": humidity, "ph": ph, "rainfall": rainfall}
-        crop, lime_output = crop_ml.predict_crop_with_lime(input_data)
-        t2 = time.time()
-        print(f"[STEP 1 DONE] Crop={crop}, LIME items={len(lime_output)}, Time={t2-t1:.1f}s")
+        # Use real ML model
+        report = crop_ml.generate_crop_report(n, p, k, temp, humidity, ph, rainfall, lang=lang)
+        print(f"DEBUG: recommend_crop - ML DONE ({(time.time()-start_time):.2f}s)")
         
-        print(f"[STEP 2] Running Groq AI explanation...")
-        expert_explanation = crop_ml.final_crop_explaination(crop, lime_output, lang=lang)
-        t3 = time.time()
-        print(f"[STEP 2 DONE] Expert len={len(str(expert_explanation))}, Time={t3-t2:.1f}s")
-        print(f"[STEP 2 PREVIEW] {str(expert_explanation)[:200]}...")
+        # Save to MongoDB in Background
+        threading.Thread(target=save_report, args=({
+            "type": "crop_recommendation",
+            "input": data,
+            "result": report,
+            "timestamp": datetime.utcnow()
+        },)).start()
         
-        threading.Thread(target=save_report, args=({"type": "crop_recommendation", "input": data, "result": {"crop": crop}, "timestamp": datetime.utcnow()},)).start()
-        
-        response = {
+        return jsonify({
             "success": True,
-            "recommendation": crop,
-            "accuracy": "99.3%",
-            "why_this_crop": lime_output,
-            "expert_explanation": expert_explanation,
-            "details": f"{crop} is highly recommended for these conditions."
-        }
-        print(f"[RESPONSE] Keys={list(response.keys())}, why_count={len(lime_output)}, expert_len={len(str(expert_explanation))}")
-        return jsonify(response)
-        
+            "recommendation": report.get("Recommended Crop", "Unknown"),
+            "accuracy": report.get("Accuracy", "99.3%"),
+            "why_this_crop": report.get("Why this crop?", []),
+            "expert_explanation": report.get("Expert Agricultural Explanation", ""),
+            "details": report.get("note", "Suitable for your climate.")
+        })
     except Exception as e:
+        print(f"ERROR: recommend_crop FAILED: {e}")
         import traceback
-        print(f"[CROP REC ERROR] {e}")
         traceback.print_exc()
-        return jsonify({"success": True, "recommendation": "Error", "accuracy": "0%", "why_this_crop": [], "expert_explanation": f"Error: {str(e)}", "details": str(e)})
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # ----------------------------
 # 🧪 FERTILIZER RECOMMENDATION (ML + MongoDB)
@@ -470,26 +730,34 @@ def recommend_future_crop():
             avg_hum = np.mean([d["humidity"] for d in final_weather])
             avg_rain = np.mean([d.get("rain", 0) for d in final_weather])
             
-            # 4. Call Crop Recommendation ML (same pipeline as crop rec)
+            # 4. Call Crop Recommendation ML
             import time
-            t1 = time.time()
-            print(f"[FUTURE] Running LIME + AI for future recommendation...")
-            input_data = {"N": user_n, "P": user_p, "K": user_k, "temperature": avg_temp, "humidity": avg_hum, "ph": user_ph, "rainfall": avg_rain * days}
-            crop, lime_output = crop_ml.predict_crop_with_lime(input_data)
-            t2 = time.time()
-            print(f"[FUTURE] Crop={crop}, LIME items={len(lime_output)}, Time={t2-t1:.1f}s")
+            start_ml = time.time()
+            report = crop_ml.generate_crop_report(
+                n=user_n, p=user_p, k=user_k, 
+                temp=avg_temp, 
+                humidity=avg_hum, 
+                ph=user_ph, 
+                rainfall=avg_rain * days,
+                lang=lang
+            )
+            print(f"DEBUG: recommend_future_crop - ML DONE ({(time.time()-start_ml):.2f}s)")
             
-            expert_explanation = crop_ml.final_crop_explaination(crop, lime_output, lang=lang)
-            t3 = time.time()
-            print(f"[FUTURE] Expert len={len(str(expert_explanation))}, Time={t3-t2:.1f}s")
+            # Format reasons as strings to match mobile model List<String>
+            raw_reasons = report.get("Why this crop?", [])
+            formatted_reasons = []
+            for r in raw_reasons:
+                feature = r.get("feature", "Factor")
+                impact = r.get("impact", 0)
+                emoji = "✅" if impact > 0 else "⚠️"
+                formatted_reasons.append(f"{emoji} {feature.capitalize()} (impact: {impact})")
 
             return jsonify({
                 "success": True,
-                "recommendation": crop,
-                "accuracy": "99.3% (Estimated)",
-                "why_this_crop": lime_output,
-                "expert_explanation": expert_explanation,
-                "reasons": [f"{item['feature']} (impact: {item['impact']})" for item in lime_output],
+                "recommendation": report.get("Recommended Crop", "Unknown"),
+                "accuracy": report.get("Accuracy", "99.1% (Estimated)"),
+                "reasons": formatted_reasons,
+                "expert_explanation": report.get("Expert Agricultural Explanation", ""),
                 "weather_summary": {
                     "avg_temp": float(avg_temp),
                     "avg_humidity": float(avg_hum),
@@ -786,6 +1054,7 @@ STYLE GUIDELINES:
 4. Keep the tone helpful, modern, and expert.
 5. NEVER show technical tags like <web_search> or JSON code to the user.
 6. Always prioritize practical and region-aware advice.
+7. CRITICAL LANGUAGE RULE: You MUST respond in the EXACT language specified in the user message. If the user asks in Hindi, reply ONLY in Hindi. If asked in Marathi, reply ONLY in Marathi. NEVER mix languages unless the user does.
 
 If you need current information, use the web_search tool, but integrate the results seamlessly into your professional answer.
 """
@@ -855,11 +1124,23 @@ def chat_query():
     if not executor:
         return jsonify({"error": "Chatbot is currently offline (Check API Keys)"}), 503
 
-    # Add language instruction
-    if lang.lower() == 'hi':
-        query = f"{query} (Please respond in Hindi only)"
+    # Build strong language instruction based on selected language
+    lang_map = {
+        'hi': ('Hindi', 'कृपया पूरी तरह से हिंदी में उत्तर दें।'),
+        'mr': ('Marathi', 'कृपया संपूर्ण मराठीत उत्तर द्या.'),
+        'pa': ('Punjabi', 'ਕਿਰਪਾ ਪੂਰੀ ਤਰ੍ਹਾਂ ਨਾਲ ਪੰਜਾਬੀ ਵਿੱਚ ਜਵਾਬ ਦਿਓ.'),
+        'gu': ('Gujarati', 'કૃપા કરીને સંપૂર્ણ ગુજરાતીમાં જવાબ આપો.'),
+        'bn': ('Bengali', 'অনুগ্রহ করে সম্পূর্ণ বাংলায় উত্তর দিন।'),
+        'te': ('Telugu', 'దయచేసి పూర్తిగా తెలుగులో సమాధానం ఇవ్వండి.'),
+        'ta': ('Tamil', 'தயவு செய்து முழுமையாக தமிழில் பதிலளிக்கவும்.')
+    }
+    
+    lang_lower = lang.lower()
+    if lang_lower in lang_map:
+        lang_name, native_hint = lang_map[lang_lower]
+        query = f"[IMPORTANT: You MUST respond ONLY in {lang_name} language. Do NOT use English at all. {native_hint}]\n\n{query}"
     else:
-        query = f"{query} (Please respond in English)"
+        query = f"[Respond in English]\n\n{query}"
 
     config = {"configurable": {"thread_id": thread_id}}
     

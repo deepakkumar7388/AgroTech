@@ -5,16 +5,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -28,14 +25,13 @@ import com.agrotech.ai.ui.theme.LocalAppStrings
 @Composable
 fun LoginScreen(navController: NavController, viewModel: AgroViewModel) {
     val strings = LocalAppStrings.current
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    var mobileNumber by remember { mutableStateOf("") }
     
     val isLoading by viewModel.isLoading.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -55,32 +51,11 @@ fun LoginScreen(navController: NavController, viewModel: AgroViewModel) {
                 Spacer(modifier = Modifier.height(48.dp))
                 
                 AgroTextField(
-                    value = email, 
-                    onValueChange = { email = it }, 
-                    label = strings.email,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    value = mobileNumber, 
+                    onValueChange = { mobileNumber = it }, 
+                    label = "Mobile Number",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
                 )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                AgroTextField(
-                    value = password, 
-                    onValueChange = { password = it }, 
-                    label = strings.password,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(imageVector = icon, contentDescription = "Toggle password visibility")
-                        }
-                    }
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                TextButton(onClick = { /* Forgot Password */ }, modifier = Modifier.align(Alignment.End)) {
-                    Text(strings.forgotPassword)
-                }
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
@@ -88,16 +63,21 @@ fun LoginScreen(navController: NavController, viewModel: AgroViewModel) {
                     CircularProgressIndicator()
                 } else {
                     AgroButton(text = strings.login, onClick = { 
-                        if (email.isNotEmpty() && password.isNotEmpty()) {
-                            viewModel.login(email, password) { error ->
+                        if (mobileNumber.isNotEmpty()) {
+                            android.util.Log.d("AUTH", "Login attempt: $mobileNumber")
+                            viewModel.login(mobileNumber) { error ->
                                 if (error == null) {
+                                    android.util.Log.d("AUTH", "Login SUCCESS")
                                     navController.navigate(Screen.LanguageSelector.route)
                                 } else {
+                                    android.util.Log.e("AUTH", "Login FAILED: $error")
+                                    android.widget.Toast.makeText(context, error, android.widget.Toast.LENGTH_LONG).show()
                                     scope.launch { snackbarHostState.showSnackbar(error) }
                                 }
                             }
                         } else {
-                            scope.launch { snackbarHostState.showSnackbar("Please enter all details") }
+                            android.widget.Toast.makeText(context, "Please enter mobile number", android.widget.Toast.LENGTH_SHORT).show()
+                            scope.launch { snackbarHostState.showSnackbar("Please enter mobile number") }
                         }
                     })
                 }
@@ -118,14 +98,13 @@ fun LoginScreen(navController: NavController, viewModel: AgroViewModel) {
 fun SignupScreen(navController: NavController, viewModel: AgroViewModel) {
     val strings = LocalAppStrings.current
     var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    var mobileNumber by remember { mutableStateOf("") }
 
     val isLoading by viewModel.isLoading.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -149,43 +128,32 @@ fun SignupScreen(navController: NavController, viewModel: AgroViewModel) {
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 AgroTextField(
-                    value = email, 
-                    onValueChange = { email = it }, 
-                    label = strings.email,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    value = mobileNumber, 
+                    onValueChange = { mobileNumber = it }, 
+                    label = "Mobile Number",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
                 )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                AgroTextField(
-                    value = password, 
-                    onValueChange = { password = it }, 
-                    label = strings.password,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(imageVector = icon, contentDescription = "Toggle password visibility")
-                        }
-                    }
-                )
-                
+
                 Spacer(modifier = Modifier.height(32.dp))
                 
                 if (isLoading) {
                     CircularProgressIndicator()
                 } else {
                     AgroButton(text = strings.signup, onClick = { 
-                        if (name.isNotEmpty() && email.isNotEmpty() && password.isNotEmpty()) {
-                            viewModel.signup(name, email, password) { error ->
+                        if (name.isNotEmpty() && mobileNumber.isNotEmpty()) {
+                            android.util.Log.d("AUTH", "Signup attempt: $name, $mobileNumber")
+                            viewModel.signup(name, mobileNumber) { error ->
                                 if (error == null) {
+                                    android.util.Log.d("AUTH", "Signup SUCCESS")
                                     navController.navigate(Screen.LanguageSelector.route)
                                 } else {
+                                    android.util.Log.e("AUTH", "Signup FAILED: $error")
+                                    android.widget.Toast.makeText(context, error, android.widget.Toast.LENGTH_LONG).show()
                                     scope.launch { snackbarHostState.showSnackbar(error) }
                                 }
                             }
                         } else {
+                            android.widget.Toast.makeText(context, "Please fill all fields", android.widget.Toast.LENGTH_SHORT).show()
                             scope.launch { snackbarHostState.showSnackbar("Please fill all fields") }
                         }
                     })

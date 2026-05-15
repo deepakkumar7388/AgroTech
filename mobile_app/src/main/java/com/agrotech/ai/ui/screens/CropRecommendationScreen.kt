@@ -22,9 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.SpanStyle
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
@@ -48,17 +45,17 @@ import androidx.compose.ui.text.input.KeyboardType
 fun CropRecommendationScreen(navController: NavController, viewModel: AgroViewModel) {
     val strings = LocalAppStrings.current
     val focusManager = LocalFocusManager.current
-
+    
     var n by remember { mutableStateOf("") }
     var p by remember { mutableStateOf("") }
     var k by remember { mutableStateOf("") }
     var ph by remember { mutableStateOf("") }
     var humidity by remember { mutableStateOf("") }
     var rainfall by remember { mutableStateOf("") }
+    var showFuturePlanning by remember { mutableStateOf(false) }
 
     val result by viewModel.cropRec.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val iotState by viewModel.iotState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -86,38 +83,17 @@ fun CropRecommendationScreen(navController: NavController, viewModel: AgroViewMo
             contentPadding = PaddingValues(16.dp)
         ) {
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            strings.enterDetails,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            "Provide soil nutrients and climate data.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    
-                    // 🛰️ Fetch from Sensor Button
-                    IconButton(
-                        onClick = {
-                            iotState?.let {
-                                humidity = it.temp?.toString() ?: "" 
-                                rainfall = "120" 
-                            }
-                        },
-                        colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                    ) {
-                        Icon(Icons.Default.SettingsInputAntenna, null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
+                Text(
+                    strings.enterDetails,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    "Provide soil nutrients and climate data for accurate predictions.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
@@ -167,8 +143,34 @@ fun CropRecommendationScreen(navController: NavController, viewModel: AgroViewMo
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = {
                                 focusManager.clearFocus()
-                                submit(n, p, k, ph, humidity, rainfall, viewModel)
+                                val data = SoilData(
+                                    nitrogen = n.toFloatOrNull() ?: 0.0f,
+                                    phosphorus = p.toFloatOrNull() ?: 0.0f,
+                                    potassium = k.toFloatOrNull() ?: 0.0f,
+                                    ph = ph.toFloatOrNull() ?: 0.0f,
+                                    humidity = humidity.toFloatOrNull() ?: 70.0f,
+                                    rainfall = rainfall.toFloatOrNull() ?: 100.0f,
+                                    temperature = 25.0f,
+                                    moisture = 20.0
+                                )
+                                viewModel.getCropRecommendation(data)
                             })
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Plan for Future", fontWeight = FontWeight.Bold)
+                            Text("Predict crops for 1-2 months later", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        }
+                        Switch(
+                            checked = showFuturePlanning,
+                            onCheckedChange = { showFuturePlanning = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
                         )
                     }
 
@@ -177,7 +179,21 @@ fun CropRecommendationScreen(navController: NavController, viewModel: AgroViewMo
                     Button(
                         onClick = {
                             focusManager.clearFocus()
-                            submit(n, p, k, ph, humidity, rainfall, viewModel)
+                            val data = SoilData(
+                                nitrogen = n.toFloatOrNull() ?: 0.0f,
+                                phosphorus = p.toFloatOrNull() ?: 0.0f,
+                                potassium = k.toFloatOrNull() ?: 0.0f,
+                                ph = ph.toFloatOrNull() ?: 0.0f,
+                                humidity = humidity.toFloatOrNull() ?: 70.0f,
+                                rainfall = rainfall.toFloatOrNull() ?: 100.0f,
+                                temperature = 25.0f,
+                                moisture = 20.0
+                            )
+                            if (showFuturePlanning) {
+                                viewModel.calculateFutureRecommendations(data)
+                            } else {
+                                viewModel.getCropRecommendation(data)
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -192,7 +208,7 @@ fun CropRecommendationScreen(navController: NavController, viewModel: AgroViewMo
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    strings.getRecommendation, 
+                                    if (showFuturePlanning) "Analyze Future Seasons" else strings.getRecommendation, 
                                     fontWeight = FontWeight.Bold, 
                                     fontSize = 16.sp
                                 )
@@ -207,23 +223,15 @@ fun CropRecommendationScreen(navController: NavController, viewModel: AgroViewMo
                     Spacer(modifier = Modifier.height(32.dp))
                     RecommendationResultCard(result!!, navController, viewModel)
                 }
+                
+                if (showFuturePlanning) {
+                    item {
+                        FuturePlanningSection(viewModel, navController)
+                    }
+                }
             }
         }
     }
-}
-
-private fun submit(n: String, p: String, k: String, ph: String, humidity: String, rainfall: String, viewModel: AgroViewModel) {
-    val data = SoilData(
-        nitrogen = n.toFloatOrNull() ?: 0.0f,
-        phosphorus = p.toFloatOrNull() ?: 0.0f,
-        potassium = k.toFloatOrNull() ?: 0.0f,
-        ph = ph.toFloatOrNull() ?: 0.0f,
-        humidity = humidity.toFloatOrNull() ?: 70.0f,
-        rainfall = rainfall.toFloatOrNull() ?: 100.0f,
-        temperature = 25.0f,
-        moisture = 20.0
-    )
-    viewModel.getCropRecommendation(data)
 }
 
 fun getCropImageUrl(crop: String): String {
@@ -259,7 +267,7 @@ fun getCropImageUrl(crop: String): String {
 fun RecommendationResultCard(result: RecommendationResponse, navController: NavController, viewModel: AgroViewModel) {
     val cropName = result.recommendation
     val imageUrl = getCropImageUrl(cropName)
-
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -270,6 +278,7 @@ fun RecommendationResultCard(result: RecommendationResponse, navController: NavC
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
+            // --- HEADER ---
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     shape = CircleShape,
@@ -298,13 +307,15 @@ fun RecommendationResultCard(result: RecommendationResponse, navController: NavC
             Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(24.dp))
 
+            // --- MAIN RECOMMENDATION ---
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(110.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Surface(
+                        modifier = Modifier.size(110.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                    ) {
                     AsyncImage(
                         model = imageUrl,
                         contentDescription = cropName,
@@ -312,9 +323,18 @@ fun RecommendationResultCard(result: RecommendationResponse, navController: NavC
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
                     )
                 }
-
+                    
+                    // URL Debug Text
+                    Text(
+                        text = "Source: ${imageUrl.take(20)}...",
+                        style = androidx.compose.ui.text.TextStyle(fontSize = 7.sp),
+                        color = Color.Gray.copy(alpha = 0.4f),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                
                 Spacer(modifier = Modifier.width(20.dp))
-
+                
                 Column {
                     Text(
                         "RECOMMENDED CROP", 
@@ -353,96 +373,75 @@ fun RecommendationResultCard(result: RecommendationResponse, navController: NavC
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // --- WHY THIS CROP ---
             Text(
-                text = "Why this crop? (Model Reasoning)",
+                "Why this crop? (Model Reasoning)", 
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF1B5E20),
-                modifier = Modifier.padding(bottom = 12.dp)
+                color = MaterialTheme.colorScheme.onSurface
             )
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    result.whyThisCrop?.let { list ->
-                        list.forEach { item ->
-                            val icon = if (item.impact > 0) "✅" else "⚠️"
-                            val color = if (item.impact > 0) Color(0xFF2E7D32) else Color(0xFFE65100)
-                            
-                            Row(
-                                modifier = Modifier.padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(text = icon, fontSize = 18.sp, modifier = Modifier.padding(end = 12.dp))
-                                Text(
-                                    text = "${item.feature} (Impact: ${item.impact})",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = color
-                                )
-                            }
-                        }
-                    } ?: Text("Analyzing soil & climate factors...", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                }
+                result.whyThisCrop?.forEach { item ->
+                    val isPositive = item.impact > 0
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isPositive) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = if (isPositive) Color(0xFF4CAF50) else Color(0xFFFF9800),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = if (isPositive) "✅ ${item.feature} (impact: ${item.impact})" else "⚠️ ${item.feature} (impact: ${item.impact})",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isPositive) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+                        )
+                    }
+                } ?: Text("Analyzing soil & climate factors...", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
 
-            // Expert Agricultural Analysis
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FBE7)),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, Color(0xFFDCEDC8)),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // --- EXPERT EXPLANATION ---
+            Surface(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.MenuBook, contentDescription = null, tint = Color(0xFF33691E), modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Icon(Icons.Default.MenuBook, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Expert Agricultural Analysis",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF33691E)
+                            "Expert Agricultural Analysis", 
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    Divider(modifier = Modifier.padding(vertical = 16.dp), color = Color(0xFFDCEDC8))
-                    
-                    val explanation = result.expertExplanation ?: "Generating ICAR-standard cultivation advice..."
-                    
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = buildAnnotatedString {
-                            val lines = explanation.split("\n")
-                            lines.forEach { line ->
-                                when {
-                                    line.startsWith("**") && line.endsWith("**") -> {
-                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFF1B5E20), fontSize = 18.sp)) {
-                                            append(line.replace("**", "") + "\n")
-                                        }
-                                    }
-                                    line.trim().startsWith("*") || line.trim().startsWith("•") -> {
-                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                            val cleanLine = line.trim().trimStart('*', '•').trim()
-                                            append("• $cleanLine\n")
-                                        }
-                                    }
-                                    else -> {
-                                        append(line + "\n")
-                                    }
-                                }
-                            }
-                        },
+                        text = result.expertExplanation ?: "Generating ICAR-standard cultivation advice...",
                         style = MaterialTheme.typography.bodyMedium,
                         lineHeight = 24.sp,
-                        color = Color.DarkGray
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Justify
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
+            // --- ACTION BUTTON ---
             AgroButton(
                 text = "Complete Cultivation Guide",
                 onClick = { 
@@ -452,6 +451,31 @@ fun RecommendationResultCard(result: RecommendationResponse, navController: NavC
                 },
                 containerColor = MaterialTheme.colorScheme.primary
             )
+        }
+    }
+}
+
+@Composable
+fun FuturePlanningSection(viewModel: AgroViewModel, navController: NavController) {
+    val futureRecs by viewModel.futureRecs.collectAsState()
+    
+    if (futureRecs.isNotEmpty()) {
+        Column(modifier = Modifier.padding(vertical = 16.dp)) {
+            Text(
+                "Future Predictions", 
+                style = MaterialTheme.typography.titleLarge, 
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                futureRecs.forEach { (months, res) ->
+                    FutureCropCard(months, res, modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }

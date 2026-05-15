@@ -69,8 +69,6 @@ fun CropMenuScreen(navController: NavController) {
                 )
             }
 
-
-
             // 2. Services Grid
             item {
                 SectionHeader(title = strings.coreServices, modifier = Modifier.padding(top = 8.dp))
@@ -107,7 +105,7 @@ fun CropMenuScreen(navController: NavController) {
                         onClick = { navController.navigate(Screen.FertilizerRecommendation.route) }
                     )
                     CategoryActionCard(
-                        title = "Seasonal Planning",
+                        title = strings.seasonalPlanningLabel,
                         icon = Icons.Default.CalendarMonth,
                         color = Color(0xFF7B1FA2),
                         modifier = Modifier.weight(1f),

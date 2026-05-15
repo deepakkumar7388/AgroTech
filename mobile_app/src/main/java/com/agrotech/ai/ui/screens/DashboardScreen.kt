@@ -71,6 +71,14 @@ fun DashboardScreen(navController: NavController, viewModel: AgroViewModel) {
     val error by viewModel.errorState.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     
+    var showDeviceDialog by remember { mutableStateOf(false) }
+
+    if (showDeviceDialog) {
+        ConnectDeviceDialog(viewModel = viewModel) {
+            showDeviceDialog = false
+        }
+    }
+    
     val analysisResult by viewModel.cropAnalysisResult.collectAsState()
     val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
 
@@ -172,6 +180,31 @@ fun DashboardScreen(navController: NavController, viewModel: AgroViewModel) {
             // 1. Welcome Banner
             item {
                 WelcomeBanner(user?.name ?: "Farmer")
+            }
+
+            if (user?.deviceId == null) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .clickable { showDeviceDialog = true },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Devices, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("No Hardware Linked", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text("Tap to connect your IoT Device ID", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
             }
 
             // Unified Field Data Card with Title Inside
@@ -587,4 +620,48 @@ fun ProceduralNDVIMap(modifier: Modifier = Modifier, healthScore: Double = 0.5, 
             )
         }
     }
+}
+@Composable
+fun ConnectDeviceDialog(viewModel: AgroViewModel, onDismiss: () -> Unit) {
+    var deviceId by remember { mutableStateOf("") }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Connect IoT Device") },
+        text = {
+            Column {
+                Text("Enter the unique ID hardcoded in your Arduino/Laptop script.")
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = deviceId,
+                    onValueChange = { deviceId = it },
+                    label = { Text("Device ID (e.g. FARM_001)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (errorMsg != null) {
+                    Text(errorMsg!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (deviceId.isNotEmpty()) {
+                    viewModel.connectDevice(deviceId) { error ->
+                        if (error == null) {
+                            onDismiss()
+                        } else {
+                            errorMsg = error
+                        }
+                    }
+                }
+            }) {
+                Text("Link Device")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

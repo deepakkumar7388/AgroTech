@@ -38,7 +38,7 @@ import android.net.Uri
 @Composable
 fun LearningScreen(navController: NavController, viewModel: AgroViewModel) {
     val userState by viewModel.userState.collectAsState()
-    val isAdmin = userState?.email == "admin@agrotech.com"
+    val isAdmin = userState?.role == "admin"
     val lessons by viewModel.lessons.collectAsState()
 
     var playingVideoUri by remember { mutableStateOf<String?>(null) }
@@ -53,7 +53,7 @@ fun LearningScreen(navController: NavController, viewModel: AgroViewModel) {
                 duration = "0:00",
                 crop = "General",
                 status = if (isAdmin) "APPROVED" else "PENDING",
-                uploadedBy = userState?.email ?: "user",
+                uploadedBy = userState?.mobileNumber ?: "user",
                 videoUri = it.toString()
             )
             viewModel.addLesson(newLesson)
@@ -87,7 +87,10 @@ fun LearningScreen(navController: NavController, viewModel: AgroViewModel) {
                 .fillMaxSize()
         ) {
             items(lessons) { lesson ->
-                val shouldShow = isAdmin || lesson.status == "APPROVED" || lesson.uploadedBy == userState?.email
+                // Regular users only see APPROVED videos + their own PENDING ones
+                // Admins see EVERYTHING
+                val shouldShow = isAdmin || lesson.status == "APPROVED" || lesson.uploadedBy == userState?.mobileNumber
+                
                 if (shouldShow) {
                     LessonItem(
                         lesson = lesson, 
@@ -151,7 +154,7 @@ fun LessonItem(lesson: VideoLesson, isAdmin: Boolean, onApprove: () -> Unit, onP
                     Text(text = lesson.duration, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 }
             }
-
+            
             if (isAdmin && lesson.status == "PENDING") {
                 Button(
                     onClick = onApprove,
@@ -175,11 +178,13 @@ fun VideoPlayerDialog(videoUri: String, onDismiss: () -> Unit) {
             playWhenReady = true
         }
     }
+
     DisposableEffect(Unit) {
         onDispose {
             exoPlayer.release()
         }
     }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -198,6 +203,7 @@ fun VideoPlayerDialog(videoUri: String, onDismiss: () -> Unit) {
                     },
                     modifier = Modifier.fillMaxWidth().aspectRatio(16/9f)
                 )
+                
                 IconButton(
                     onClick = onDismiss,
                     modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
